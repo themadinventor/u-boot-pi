@@ -362,7 +362,6 @@ struct dwc_otg_core_if {
 
 	/** Host and Device Configuration -- stored here for convenience.*/
 	hcfg_data_t hcfg;
-	dcfg_data_t dcfg;
 
 	/** The operational State, during transations
 	 * (a_host>>a_peripherial and b_device=>b_host) this may not
