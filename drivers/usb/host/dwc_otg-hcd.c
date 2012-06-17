@@ -32,7 +32,6 @@
 #define DWC_OTG_HCD_DATA_BUF_SIZE 16*1024 
 
 static int root_hub_devnum = 0;
-static struct usb_port_status rh_status = { 0 };/* root hub port status */
 
 static uint8_t *allocated_buffer;
 static uint8_t *aligned_buffer;
@@ -67,6 +66,7 @@ int usb_lowlevel_init(void)
 	aligned_buffer = (uint8_t*) ((addr + 7) & ~7);
 	status_buffer = (uint8_t*)((uint32_t)aligned_buffer + DWC_OTG_HCD_DATA_BUF_SIZE);
 	int i, j;
+	hprt0_data_t hprt0 = {.d32 = 0 };
 
 	root_hub_devnum = 0;
 	memset(&g_core_if, 0, sizeof(g_core_if));
@@ -79,9 +79,7 @@ int usb_lowlevel_init(void)
 	}
 
 	dwc_otg_core_init(&g_core_if);
-	dwc_otg_core_host_init (&g_core_if);
-
-	hprt0_data_t hprt0 = {.d32 = 0 };
+	dwc_otg_core_host_init(&g_core_if);
 
 	hprt0.d32 = dwc_otg_read_hprt0(&g_core_if);
 	hprt0.b.prtrst = 1;
@@ -434,7 +432,6 @@ int submit_bulk_msg(struct usb_device *dev, unsigned long pipe, void *buffer,
 		    int len)
 {
 	int devnum = usb_pipedevice(pipe);
-	int dir_out = usb_pipeout(pipe);
 	int ep = usb_pipeendpoint(pipe);
 	int max = usb_maxpacket(dev, pipe);
 	int done = 0;
@@ -442,7 +439,6 @@ int submit_bulk_msg(struct usb_device *dev, unsigned long pipe, void *buffer,
 	dwc_otg_host_if_t *host_if = g_core_if.host_if;
 	dwc_otg_hc_regs_t *hc_regs;
 	hcint_data_t hcint;
-	hcintmsk_data_t hcintmsk;
 	hcint_data_t hcint_new;
 	uint32_t max_hc_xfer_size = g_core_if.core_params->max_transfer_size;
 	uint16_t max_hc_pkt_count = g_core_if.core_params->max_packet_count;
@@ -555,8 +551,6 @@ int submit_bulk_msg(struct usb_device *dev, unsigned long pipe, void *buffer,
 
 	if (done && usb_pipein(pipe))
 		memcpy(buffer, aligned_buffer, done);
-
-out:
 
 	dwc_write_reg32(&hc_regs->hcintmsk, 0);
 	dwc_write_reg32(&hc_regs->hcint, 0xFFFFFFFF);

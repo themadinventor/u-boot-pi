@@ -412,6 +412,10 @@ extern uint8_t dwc_otg_is_dma_enable(dwc_otg_core_if_t * core_if);
 /** This function should be called on every hardware interrupt. */
 extern int32_t dwc_otg_handle_common_intr(dwc_otg_core_if_t * _core_if);
 
+/* Register access functions */
+void dwc_write_reg32(volatile uint32_t *addr, uint32_t value);
+uint32_t dwc_read_reg32(volatile uint32_t *addr);
+
 /** @name OTG Core Parameters */
 /** @{ */
 
@@ -977,11 +981,25 @@ extern void dwc_otg_set_guid(dwc_otg_core_if_t * core_if, uint32_t val);
  */
 extern uint32_t dwc_otg_get_hprt0(dwc_otg_core_if_t * core_if);
 extern void dwc_otg_set_hprt0(dwc_otg_core_if_t * core_if, uint32_t val);
+extern uint32_t dwc_otg_read_hprt0(dwc_otg_core_if_t * _core_if);
 
 /**
  * GHPTXFSIZE
  */
 extern uint32_t dwc_otg_get_hptxfsiz(dwc_otg_core_if_t * core_if);
+
+/**
+ * Init channel @hc_num with provided parameters
+ */
+extern void dwc_otg_hc_init(dwc_otg_core_if_t * core_if, uint8_t hc_num,
+		uint8_t dev_addr, uint8_t ep_num, uint8_t ep_is_in,
+		uint8_t ep_type, uint16_t max_packet);
+
+
+/**
+ * Host controller initialization part
+ */
+extern void dwc_otg_core_host_init(dwc_otg_core_if_t * core_if);
 
 /** @} */
 
