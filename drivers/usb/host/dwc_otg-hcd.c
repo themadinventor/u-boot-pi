@@ -450,6 +450,13 @@ int submit_bulk_msg(struct usb_device *dev, unsigned long pipe, void *buffer,
 	uint32_t num_packets;
 	int stop_transfer = 0;
 
+	if (len > DWC_OTG_HCD_DATA_BUF_SIZE) {
+		printf("submit_bulk_msg: %d is more then available buffer size(%d)\n", len, DWC_OTG_HCD_DATA_BUF_SIZE);
+		dev->status = 0;
+		dev->act_len = done;
+		return -1;
+	}
+
 	hc_regs = host_if->hc_regs[CHANNEL];
 
 	if (devnum == root_hub_devnum) {
@@ -578,6 +585,13 @@ int submit_control_msg(struct usb_device *dev, unsigned long pipe, void *buffer,
 	if (devnum == root_hub_devnum) {
 		dev->status = 0;
 		return dwc_otg_submit_rh_msg(dev, pipe, buffer, len, setup);
+	}
+
+	if (len > DWC_OTG_HCD_DATA_BUF_SIZE) {
+		printf("submit_bulk_msg: %d is more then available buffer size(%d)\n", len, DWC_OTG_HCD_DATA_BUF_SIZE);
+		dev->status = 0;
+		dev->act_len = done;
+		return -1;
 	}
 
 	/* Initialize channel, OUT for setup buffer */
