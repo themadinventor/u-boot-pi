@@ -25,16 +25,18 @@
 #include "dwc_otg_regs.h"
 #include "dwc_otg_core_if.h"
 
-static int root_hub_devnum = 0;
-static struct usb_port_status rh_status = { 0 };/* root hub port status */
-
-uint8_t xstatus_buffer[128];
-uint8_t *status_buffer;
-
 #define STATUS_ACK_HLT_COMPL	0x23
 #define	CHANNEL 0
 
-uint8_t *aligned_buffer;
+#define DWC_OTG_HCD_STATUS_BUF_SIZE 64
+#define DWC_OTG_HCD_DATA_BUF_SIZE 16*1024 
+
+static int root_hub_devnum = 0;
+static struct usb_port_status rh_status = { 0 };/* root hub port status */
+
+static uint8_t *allocated_buffer;
+static uint8_t *aligned_buffer;
+static uint8_t *status_buffer;
 
 static dwc_otg_core_if_t g_core_if;
 
@@ -57,9 +59,13 @@ void do_hang(int line, uint32_t d)
  */
 int usb_lowlevel_init(void)
 {
-	status_buffer = (uint8_t*)(((uint32_t)xstatus_buffer + 8) & ~7);
-	uint32_t addr = (uint32_t)malloc(8192);
+	/*
+	 * We need doubleword-aligned buffers for DMA transfers
+	 */
+	allocated_buffer = (uint8_t*)malloc(DWC_OTG_HCD_STATUS_BUF_SIZE + DWC_OTG_HCD_DATA_BUF_SIZE + 8);
+	uint32_t addr = (uint32_t)allocated_buffer;
 	aligned_buffer = (uint8_t*) ((addr + 7) & ~7);
+	status_buffer = (uint8_t*)((uint32_t)aligned_buffer + DWC_OTG_HCD_DATA_BUF_SIZE);
 	int i, j;
 
 	root_hub_devnum = 0;
@@ -99,6 +105,8 @@ int usb_lowlevel_init(void)
 
 int usb_lowlevel_stop(void)
 {
+	free(allocated_buffer);
+
 	return 0;
 }
 
