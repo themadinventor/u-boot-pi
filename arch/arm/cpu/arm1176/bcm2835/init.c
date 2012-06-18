@@ -24,9 +24,6 @@
 
 DECLARE_GLOBAL_DATA_PTR;
 
-#define BCM2835_UART_BASE 0x20215000
-#define BCM2835_GPIO_BASE 0x20200000
-
 #define BCM2835_ARM_MBOX0_BASE 0x2000b880
 #define BCM2835_ARM_MBOX1_BASE 0x2000b8a0
 #define MBOX_CHAN_POWER   0 /* for use by the power management interface */
@@ -34,23 +31,7 @@ DECLARE_GLOBAL_DATA_PTR;
 
 int arch_cpu_init(void)
 {
-	volatile int *aux_enables = (int*)(BCM2835_UART_BASE + 0x4);
-	volatile int *gpio_fsel1 = (int*)(BCM2835_GPIO_BASE + 0x04);
-	int v;
-
-	// Configure GPIO pins 14 and 15 to serve as ALT5 func (TXD1 RXD1)
-	v = *gpio_fsel1;
-	v &= ~((7 << (4*3)));
-	v |= ((2 << (4*3)));
-	v &= ~((7 << (5*3)));
-	v |= ((2 << (5*3)));
-	*gpio_fsel1 = v;
-
-	// enable UART
-	v = *aux_enables;
-	v |= 1;
-	*aux_enables = v;
-
+#ifdef CONFIG_USB_DWC_OTG
 	/*
 	 * Request power for USB
 	 */
@@ -63,8 +44,7 @@ int arch_cpu_init(void)
 	}
 
 	*mbox0_write = MBOX_MSG(0, (8 << 4)); 
+#endif
 
-	/* Show only 128Mb of RAM, to not touch GPU data */
-	gd->ram_size = PHYS_SDRAM_1_SIZE;
 	return 0;
 }
