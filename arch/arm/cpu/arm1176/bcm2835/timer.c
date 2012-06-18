@@ -1,50 +1,34 @@
+/*
+ * (C) Copyright 2012 Stephen Warren
+ *
+ * See file CREDITS for list of people who contributed to this
+ * project.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
 #include <common.h>
 #include <asm/io.h>
-
-struct timer_regs {
-	u_int32_t t_cs;
-	u_int32_t t_clo;
-	u_int32_t t_chi;
-	u_int32_t t_c0;
-	u_int32_t t_c1;
-	u_int32_t t_c2;
-	u_int32_t t_c3;
-};
-
-#define regs ((struct timer_regs *)CONFIG_SYS_TIMERBASE)
-
-#define	SYSTEM_TIMER_HZ	1000000
-#define TIMER_LOAD_VAL	(CONFIG_SYS_HZ_CLOCK / CONFIG_SYS_HZ)
-#define TIM_CLK_DIV	16
-
-static u_int64_t timestamp;
-static u_int64_t lastinc;
+#include <asm/arch/timer.h>
 
 int timer_init(void)
 {
-	lastinc = timestamp = 0;
-
 	return 0;
-}
-
-static ulong get_timer_raw(void)
-{
-	u_int64_t now = (u_int64_t)__raw_readl(&regs->t_chi) << 32;
-	now |= __raw_readl(&regs->t_clo);
-
-	if (now >= lastinc)
-		timestamp += now - lastinc;
-	else
-		timestamp += (~lastinc + 1) + now;
-
-	lastinc = now;
-
-	return timestamp;
 }
 
 ulong get_timer(ulong base)
 {
-	return (get_timer_raw()) - base;
+	struct bcm2835_timer_regs *regs =
+		(struct bcm2835_timer_regs *)BCM2835_TIMER_PHYSADDR;
+
+	return readl(&regs->clo) - base;
 }
 
 unsigned long long get_ticks(void)
@@ -52,25 +36,20 @@ unsigned long long get_ticks(void)
 	return get_timer(0);
 }
 
-void __udelay(unsigned long usec)
-{
-	ulong tmo;
-	ulong endtime;
-	signed long diff;
-
-	tmo = SYSTEM_TIMER_HZ / 1000;
-	tmo *= usec;
-	tmo /= 1000;
-
-	endtime = get_timer_raw() + tmo;
-
-	do {
-		ulong now = get_timer_raw();
-		diff = endtime - now;
-	} while (diff >= 0);
-}
-
 ulong get_tbclk(void)
 {
 	return CONFIG_SYS_HZ;
+}
+
+void __udelay(unsigned long usec)
+{
+	ulong endtime;
+	signed long diff;
+
+	endtime = get_timer(0) + usec;
+
+	do {
+		ulong now = get_timer(0);
+		diff = endtime - now;
+	} while (diff >= 0);
 }

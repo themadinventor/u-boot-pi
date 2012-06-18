@@ -14,17 +14,14 @@
 
 include $(TOPDIR)/config.mk
 
-LIB	= $(obj)lib$(SOC).o
+LIB	= $(obj)lib$(BOARD).o
 
-SOBJS	:= lowlevel_init.o
-COBJS	:= reset.o timer.o
+COBJS	:= $(BOARD).o
 
-SRCS	:= $(SOBJS:.o=.c) $(COBJS:.o=.c)
-OBJS	:= $(addprefix $(obj),$(SOBJS) $(COBJS))
+SRCS	:= $(COBJS:.o=.c)
+OBJS	:= $(addprefix $(obj),$(COBJS))
 
-all:	$(obj).depend $(LIB)
-
-$(LIB):	$(OBJS)
+$(LIB):	$(obj).depend $(OBJS)
 	$(call cmd_link_o_target, $(OBJS))
 
 #########################################################################

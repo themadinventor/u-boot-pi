@@ -14,6 +14,19 @@
  * GNU General Public License for more details.
  */
 
-.globl lowlevel_init
-lowlevel_init:
-	mov	pc, lr
+#include <common.h>
+#include <asm/global_data.h>
+
+DECLARE_GLOBAL_DATA_PTR;
+
+int dram_init(void)
+{
+	gd->ram_size = SZ_128M;
+
+	return 0;
+}
+
+int board_init(void)
+{
+	return 0;
+}

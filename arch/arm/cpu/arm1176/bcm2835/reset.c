@@ -14,6 +14,14 @@
  * GNU General Public License for more details.
  */
 
-.globl lowlevel_init
-lowlevel_init:
-	mov	pc, lr
+#include <common.h>
+#include <asm/io.h>
+
+void reset_cpu(ulong addr)
+{
+	/*
+	 * We should probably use the WDT module here, but an unaligned
+	 * access will do the trick for now.
+	 */
+	readl(1);
+}

@@ -1,4 +1,6 @@
 #
+# (C) Copyright 2012 Stephen Warren
+#
 # See file CREDITS for list of people who contributed to this
 # project.
 #
@@ -10,28 +12,8 @@
 # WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
-#
 
-include $(TOPDIR)/config.mk
-
-LIB	= $(obj)lib$(SOC).o
-
-SOBJS	:= lowlevel_init.o
-COBJS	:= reset.o timer.o
-
-SRCS	:= $(SOBJS:.o=.c) $(COBJS:.o=.c)
-OBJS	:= $(addprefix $(obj),$(SOBJS) $(COBJS))
-
-all:	$(obj).depend $(LIB)
-
-$(LIB):	$(OBJS)
-	$(call cmd_link_o_target, $(OBJS))
-
-#########################################################################
-
-# defines $(obj).depend target
-include $(SRCTREE)/rules.mk
-
-sinclude $(obj).depend
-
-#########################################################################
+# Don't attempt to override the target CPU/ABI options;
+# the Raspberry Pi toolchain does the right thing by default.
+PLATFORM_RELFLAGS := $(filter-out -msoft-float,$(PLATFORM_RELFLAGS))
+PLATFORM_CPPFLAGS := $(filter-out -march=armv5t,$(PLATFORM_CPPFLAGS))
