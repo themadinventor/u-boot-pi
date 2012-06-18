@@ -20,9 +20,9 @@
 #include <asm/sizes.h>
 
 /* Architecture, CPU, etc.*/
-#define DEBUG
 #define CONFIG_ARM1176
 #define CONFIG_BCM2835
+#define CONFIG_ARCH_CPU_INIT
 
 /* Timer */
 #define CONFIG_SYS_HZ			1000000
@@ -75,9 +75,20 @@
 #define CONFIG_COMMAND_HISTORY
 #define CONFIG_AUTO_COMPLETE
 
+/* USB Networking options */
+#define CONFIG_USB_HOST_ETHER
+#define CONFIG_USB_ETHER_SMSC95XX
+#define CONFIG_USB_DWC_OTG
+/* Required for USB */
+#define CONFIG_DOS_PARTITION
+
 /* Commands */
 #define CONFIG_CMD_MEMORY
 #define CONFIG_CMD_MISC
 #define CONFIG_CMD_LOADB
+#define CONFIG_CMD_USB
+#define CONFIG_CMD_NET
+#define CONFIG_CMD_PING
+#define CONFIG_CMD_DHCP
 
 #endif
