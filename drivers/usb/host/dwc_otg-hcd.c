@@ -72,7 +72,7 @@ int usb_lowlevel_init(void)
 	memset(&g_core_if, 0, sizeof(g_core_if));
 	dwc_otg_cil_init(&g_core_if, (uint32_t*)0x20980000);
 
-    if ((g_core_if.snpsid & 0xFFFFF000) !=
+	if ((g_core_if.snpsid & 0xFFFFF000) !=
 		0x4F542000) {
 		printf("SNPSID is invalid (not DWC OTG device): %08x\n", g_core_if.snpsid);
 		return -1;
@@ -582,7 +582,7 @@ int submit_control_msg(struct usb_device *dev, unsigned long pipe, void *buffer,
 	}
 
 	if (len > DWC_OTG_HCD_DATA_BUF_SIZE) {
-		printf("submit_bulk_msg: %d is more then available buffer size(%d)\n", len, DWC_OTG_HCD_DATA_BUF_SIZE);
+		printf("submit_control_msg: %d is more then available buffer size(%d)\n", len, DWC_OTG_HCD_DATA_BUF_SIZE);
 		dev->status = 0;
 		dev->act_len = done;
 		return -1;
