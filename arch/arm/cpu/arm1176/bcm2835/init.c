@@ -21,6 +21,7 @@
 
 #include <config.h>
 #include <common.h>
+#include <asm/arch/regs.h>
 
 DECLARE_GLOBAL_DATA_PTR;
 
@@ -31,19 +32,28 @@ DECLARE_GLOBAL_DATA_PTR;
 
 int arch_cpu_init(void)
 {
-#ifdef CONFIG_USB_DWC_OTG
+#if defined(CONFIG_USB_DWC_OTG) || defined(CONFIG_BCM2835_SDHCI)
 	/*
-	 * Request power for USB
+	 * Request power for USB 
 	 */
 	volatile uint32_t *mbox0_read = (volatile uint32_t *)BCM2835_ARM_MBOX0_BASE;
 	volatile uint32_t *mbox0_write = (volatile uint32_t *)BCM2835_ARM_MBOX1_BASE;
 	volatile uint32_t *mbox0_status = (volatile uint32_t *)(BCM2835_ARM_MBOX0_BASE + 0x18);
 	volatile uint32_t *mbox0_config = (volatile uint32_t *)(BCM2835_ARM_MBOX0_BASE + 0x1C);
+	uint32_t val = 0;
+
+#if defined(CONFIG_USB_DWC_OTG)
+	val |= 8 << 4;
+#endif
+
+#if defined(CONFIG_BCM2835_SDHCI)
+	val |= 1 << 4;
+#endif
 
 	while (*mbox0_status & 0x80000000) {
 	}
 
-	*mbox0_write = MBOX_MSG(0, (8 << 4)); 
+	*mbox0_write = MBOX_MSG(0, val); 
 #endif
 
 	return 0;

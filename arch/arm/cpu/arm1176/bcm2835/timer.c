@@ -16,6 +16,7 @@
 
 #include <common.h>
 #include <asm/io.h>
+#include <asm/arch/regs.h>
 #include <asm/arch/timer.h>
 
 int timer_init(void)

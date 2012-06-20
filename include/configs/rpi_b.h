@@ -60,6 +60,13 @@
 #define CONFIG_SYS_PBSIZE		(CONFIG_SYS_CBSIZE +		\
 					 sizeof(CONFIG_SYS_PROMPT) + 16)
 
+/* SD/MMC configuration */
+#define CONFIG_GENERIC_MMC
+#define CONFIG_MMC
+#define CONFIG_SDHCI
+#define	CONFIG_MMC_SDHCI_IO_ACCESSORS
+#define CONFIG_BCM2835_SDHCI
+
 /* Environment */
 #define CONFIG_ENV_SIZE			SZ_16K
 #define CONFIG_ENV_IS_NOWHERE
@@ -90,5 +97,8 @@
 #define CONFIG_CMD_NET
 #define CONFIG_CMD_PING
 #define CONFIG_CMD_DHCP
+
+#define CONFIG_CMD_MMC
+#define CONFIG_CMD_FAT
 
 #endif

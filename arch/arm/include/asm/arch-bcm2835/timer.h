@@ -17,8 +17,6 @@
 #ifndef _BCM2835_TIMER_H
 #define _BCM2835_TIMER_H
 
-#define BCM2835_TIMER_PHYSADDR	0x20003000
-
 struct bcm2835_timer_regs {
 	u32 cs;
 	u32 clo;
