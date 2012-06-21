@@ -367,13 +367,7 @@ static int smsc95xx_init_mac_address(struct eth_device *eth,
 	 * No eeprom, or eeprom values are invalid. Generating a random MAC
 	 * address is not safe. Just return an error.
 	 */
-	eth->enetaddr[0] = 0xb8;
-	eth->enetaddr[1] = 0x27;
-	eth->enetaddr[2] = 0xeb;
-	eth->enetaddr[3] = 0xf6;
-	eth->enetaddr[4] = 0x08;
-	eth->enetaddr[5] = 0x83;
-	return 0;
+	return -1;
 }
 
 static int smsc95xx_write_hwaddr(struct eth_device *eth)
