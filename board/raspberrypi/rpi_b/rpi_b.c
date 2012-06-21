@@ -19,6 +19,11 @@
 
 DECLARE_GLOBAL_DATA_PTR;
 
+#define SMSC_MAC_SIGNATURE "smsc95xx.macaddr="
+#define SMSC_MAC_SIGNATURE_LEN strlen("smsc95xx.macaddr=")
+// XX:XX:XX:XX:XX:XX
+#define MAC_LEN (17)
+
 int dram_init(void)
 {
 	gd->ram_size = PHYS_SDRAM_SIZE;
@@ -28,5 +33,26 @@ int dram_init(void)
 
 int board_init(void)
 {
+	return 0;
+}
+
+int misc_init_r()
+{	
+	unsigned char *atags;
+	unsigned char mac[MAC_LEN + 1];
+
+	for (atags = 0x100; atags < 0x4000; atags++) {
+		if (*atags = 's') {
+			if (strncmp(atags, SMSC_MAC_SIGNATURE, 
+			    SMSC_MAC_SIGNATURE_LEN) == 0) {
+				strncpy(mac, atags + SMSC_MAC_SIGNATURE_LEN, MAC_LEN);
+				mac[MAC_LEN] = 0;
+				setenv("usbethaddr", mac);
+				
+				break;
+			}
+		}
+	}
+
 	return 0;
 }
