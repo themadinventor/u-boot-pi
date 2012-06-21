@@ -53,6 +53,29 @@ void do_hang(int line, uint32_t d)
 	}
 }
 
+void handle_error(int line, uint32_t d)
+{
+	hcint_data_t hcint;
+	hcint.d32 = d;
+
+	printf("Error condition at line %d: ", line);
+	if (hcint.b.ahberr)
+		printf(" AHBERR");
+	if (hcint.b.stall)
+		printf(" STALL");
+	if (hcint.b.bblerr)
+		printf(" NAK");
+	if (hcint.b.ack)
+		printf(" ACK");
+	if (hcint.b.nyet)
+		printf(" NYET");
+	if (hcint.b.xacterr)
+		printf(" XACTERR");
+	if (hcint.b.datatglerr)
+		printf(" DATATGLERR");
+	printf("\n");
+}
+
 /*
  * U-Boot USB interface
  */
@@ -533,8 +556,10 @@ int submit_bulk_msg(struct usb_device *dev, unsigned long pipe, void *buffer,
 						done += xfer_len;
 					}
 
-					if (hcint_new.d32 != STATUS_ACK_HLT_COMPL)
-						do_hang(__LINE__, hcint_new.d32);
+					if (hcint_new.d32 != STATUS_ACK_HLT_COMPL) {
+						handle_error(__LINE__, hcint_new.d32);
+						goto out;
+					}
 	
 					break;
 				}
@@ -554,7 +579,7 @@ int submit_bulk_msg(struct usb_device *dev, unsigned long pipe, void *buffer,
 
 	dwc_write_reg32(&hc_regs->hcintmsk, 0);
 	dwc_write_reg32(&hc_regs->hcint, 0xFFFFFFFF);
-
+out:
 	dev->status = 0;
 	dev->act_len = done;
 
@@ -622,7 +647,8 @@ int submit_control_msg(struct usb_device *dev, unsigned long pipe, void *buffer,
 
 	/* TODO: check for error */
 	if (!(hcint_new.b.chhltd && hcint_new.b.xfercomp)) {
-			do_hang(__LINE__, hcint_new.d32);
+		handle_error(__LINE__, hcint_new.d32);
+		goto out;
 	}
 
 	/* Clear interrupts*/
@@ -658,15 +684,13 @@ int submit_control_msg(struct usb_device *dev, unsigned long pipe, void *buffer,
 		while(1) {
 			hcint_new.d32 = dwc_read_reg32(&hc_regs->hcint);
 			if (hcint_new.b.chhltd) {
-
-				if (!hcint_new.b.xfercomp)
-					do_hang(__LINE__, hcint_new.d32);
-
-				hctsiz.d32 = dwc_read_reg32(&hc_regs->hctsiz);
-				if (usb_pipein(pipe))
-					done = len - hctsiz.b.xfersize;
-				else
-					done = len;
+				if (hcint_new.b.xfercomp) {
+					hctsiz.d32 = dwc_read_reg32(&hc_regs->hctsiz);
+					if (usb_pipein(pipe))
+						done = len - hctsiz.b.xfersize;
+					else
+						done = len;
+				}
 
 				if (hcint_new.b.ack) {
 					if (hctsiz.b.pid == DWC_OTG_HC_PID_DATA0)
@@ -675,8 +699,10 @@ int submit_control_msg(struct usb_device *dev, unsigned long pipe, void *buffer,
 						control_data_toggle[devnum][ep] = DWC_OTG_HC_PID_DATA1;
 				}
 
-				if (hcint_new.d32 != STATUS_ACK_HLT_COMPL)
-					do_hang(__LINE__, hcint_new.d32);
+				if (hcint_new.d32 != STATUS_ACK_HLT_COMPL) {
+					goto out;
+					handle_error(__LINE__, hcint_new.d32);
+				}
 			
 				break;
 			}
@@ -715,11 +741,10 @@ int submit_control_msg(struct usb_device *dev, unsigned long pipe, void *buffer,
 			break;
 	}
 
-	/* TODO: chek errors */
-	if (!(hcint_new.b.chhltd && hcint_new.b.xfercomp)) {
-			do_hang(__LINE__, hcint_new.d32);
-	}
+	if (hcint_new.d32 != STATUS_ACK_HLT_COMPL)
+		handle_error(__LINE__, hcint_new.d32);
 
+out:
 	dev->act_len = done;
 	dev->status = 0;
 
