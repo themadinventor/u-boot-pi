@@ -38,20 +38,25 @@ int board_init(void)
 
 int misc_init_r()
 {	
+	uint32_t tag_value;
 	unsigned char *atags;
+	unsigned char *mac_param;
 	unsigned char mac[MAC_LEN + 1];
 
-	for (atags = 0x100; atags < 0x4000; atags++) {
-		if (*atags = 's') {
-			if (strncmp(atags, SMSC_MAC_SIGNATURE, 
-			    SMSC_MAC_SIGNATURE_LEN) == 0) {
-				strncpy(mac, atags + SMSC_MAC_SIGNATURE_LEN, MAC_LEN);
+	for (atags = 0x100; atags < 0x4000; atags += 4) {
+		memcpy(&tag_value, atags, sizeof(uint32_t));
+		if (tag_value == ATAG_CMDLINE) {
+			atags += 4;
+			setenv("bootargs", atags);
+			if (mac_param = strstr(atags, SMSC_MAC_SIGNATURE)) {
+				strncpy(mac, 
+				  mac_param + SMSC_MAC_SIGNATURE_LEN,
+				  MAC_LEN);
 				mac[MAC_LEN] = 0;
 				setenv("usbethaddr", mac);
-				
-				break;
 			}
 		}
+
 	}
 
 	return 0;
