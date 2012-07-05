@@ -1847,7 +1847,7 @@ void dwc_otg_core_reset(dwc_otg_core_if_t * core_if)
 	dwc_write_reg32(&global_regs->grstctl, greset.d32);
 	do {
 		greset.d32 = dwc_read_reg32(&global_regs->grstctl);
-		if (++count > 10000) {
+		if (++count > 1000000) {
 			printf("%s() HANG! Soft Reset GRSTCTL=%0x\n",
 				 __func__, greset.d32);
 			break;
