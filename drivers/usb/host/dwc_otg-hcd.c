@@ -29,7 +29,7 @@
 #define	CHANNEL 0
 
 #define DWC_OTG_HCD_STATUS_BUF_SIZE 64
-#define DWC_OTG_HCD_DATA_BUF_SIZE 16*1024 
+#define DWC_OTG_HCD_DATA_BUF_SIZE 64*1024 
 
 static int root_hub_devnum = 0;
 
@@ -298,6 +298,8 @@ static int dwc_otg_submit_rh_msg(struct usb_device *dev, unsigned long pipe,
 				port_status |= USB_PORT_STAT_RESET;
 			if (hprt0.b.prtpwr)
 				port_status |= USB_PORT_STAT_POWER;
+
+			port_status |= USB_PORT_STAT_HIGH_SPEED;
 
 			if (hprt0.b.prtenchng)
 				port_change |= USB_PORT_STAT_C_ENABLE;
@@ -603,6 +605,7 @@ int submit_control_msg(struct usb_device *dev, unsigned long pipe, void *buffer,
 
 	if (devnum == root_hub_devnum) {
 		dev->status = 0;
+		dev->speed = USB_SPEED_HIGH;
 		return dwc_otg_submit_rh_msg(dev, pipe, buffer, len, setup);
 	}
 
