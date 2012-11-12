@@ -54,6 +54,7 @@ int arch_cpu_init(void)
 	}
 
 	*mbox0_write = MBOX_MSG(0, val); 
+#endif
 
 	icache_enable();
 

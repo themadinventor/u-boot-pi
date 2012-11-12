@@ -79,7 +79,7 @@ void handle_error(int line, uint32_t d)
 /*
  * U-Boot USB interface
  */
-int usb_lowlevel_init(void)
+int usb_lowlevel_init(int index, void **controller)
 {
 	/*
 	 * We need doubleword-aligned buffers for DMA transfers
@@ -124,7 +124,7 @@ int usb_lowlevel_init(void)
 	return 0;
 }
 
-int usb_lowlevel_stop(void)
+int usb_lowlevel_stop(int index)
 {
 	free(allocated_buffer);
 
