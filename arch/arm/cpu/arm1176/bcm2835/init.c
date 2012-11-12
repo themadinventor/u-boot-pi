@@ -1,5 +1,5 @@
 /*
- * TNETV107X: Architecture initialization
+ * (C) Copyright 2012 Stephen Warren
  *
  * See file CREDITS for list of people who contributed to this
  * project.
@@ -54,7 +54,8 @@ int arch_cpu_init(void)
 	}
 
 	*mbox0_write = MBOX_MSG(0, val); 
-#endif
+
+	icache_enable();
 
 	return 0;
 }

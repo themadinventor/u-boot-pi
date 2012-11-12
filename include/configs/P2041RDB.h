@@ -1,5 +1,5 @@
 /*
- * Copyright 2011 Freescale Semiconductor, Inc.
+ * Copyright 2011-2012 Freescale Semiconductor, Inc.
  *
  * See file CREDITS for list of people who contributed to this
  * project.
@@ -22,7 +22,7 @@
 
 /*
  * P2041 RDB board configuration file
- *
+ * Also supports P2040 RDB
  */
 #ifndef __CONFIG_H
 #define __CONFIG_H
@@ -34,6 +34,15 @@
 #ifdef CONFIG_RAMBOOT_PBL
 #define CONFIG_RAMBOOT_TEXT_BASE	CONFIG_SYS_TEXT_BASE
 #define CONFIG_RESET_VECTOR_ADDRESS	0xfffffffc
+#endif
+
+#ifdef CONFIG_SRIO_PCIE_BOOT_SLAVE
+/* Set 1M boot space */
+#define CONFIG_SYS_SRIO_PCIE_BOOT_SLAVE_ADDR (CONFIG_SYS_TEXT_BASE & 0xfff00000)
+#define CONFIG_SYS_SRIO_PCIE_BOOT_SLAVE_ADDR_PHYS \
+		(0x300000000ull | CONFIG_SYS_SRIO_PCIE_BOOT_SLAVE_ADDR)
+#define CONFIG_RESET_VECTOR_ADDRESS 0xfffffffc
+#define CONFIG_SYS_NO_FLASH
 #endif
 
 /* High Level Configuration Options */
@@ -73,10 +82,13 @@
 #define CONFIG_ENV_OVERWRITE
 
 #ifdef CONFIG_SYS_NO_FLASH
+#if !defined(CONFIG_RAMBOOT_PBL) && !defined(CONFIG_SRIO_PCIE_BOOT_SLAVE)
 #define CONFIG_ENV_IS_NOWHERE
+#endif
 #else
 #define CONFIG_FLASH_CFI_DRIVER
 #define CONFIG_SYS_FLASH_CFI
+#define CONFIG_SYS_FLASH_USE_BUFFER_WRITE
 #endif
 
 #if defined(CONFIG_SPIFLASH)
@@ -101,6 +113,12 @@
 #define CONFIG_ENV_IS_IN_NAND
 #define CONFIG_ENV_SIZE			CONFIG_SYS_NAND_BLOCK_SIZE
 #define CONFIG_ENV_OFFSET		(5 * CONFIG_SYS_NAND_BLOCK_SIZE)
+#elif defined(CONFIG_SRIO_PCIE_BOOT_SLAVE)
+#define CONFIG_ENV_IS_IN_REMOTE
+#define CONFIG_ENV_ADDR		0xffe20000
+#define CONFIG_ENV_SIZE		0x2000
+#elif defined(CONFIG_ENV_IS_NOWHERE)
+#define CONFIG_ENV_SIZE		0x2000
 #else
 	#define CONFIG_ENV_IS_IN_FLASH
 	#define CONFIG_ENV_ADDR		(CONFIG_SYS_MONITOR_BASE \
@@ -329,7 +347,6 @@ unsigned long get_board_sys_clk(unsigned long dummy);
 
 /* Use the HUSH parser */
 #define CONFIG_SYS_HUSH_PARSER
-#define CONFIG_SYS_PROMPT_HUSH_PS2 "> "
 
 /* pass open firmware flat tree */
 #define CONFIG_OF_LIBFDT
@@ -368,6 +385,35 @@ unsigned long get_board_sys_clk(unsigned long dummy);
 #define CONFIG_SYS_SRIO2_MEM_PHYS	0xb0000000
 #endif
 #define CONFIG_SYS_SRIO2_MEM_SIZE	0x10000000	/* 256M */
+
+/*
+ * for slave u-boot IMAGE instored in master memory space,
+ * PHYS must be aligned based on the SIZE
+ */
+#define CONFIG_SRIO_PCIE_BOOT_IMAGE_MEM_PHYS 0xfef080000ull
+#define CONFIG_SRIO_PCIE_BOOT_IMAGE_MEM_BUS1 0xfff80000ull
+#define CONFIG_SRIO_PCIE_BOOT_IMAGE_SIZE 0x80000	/* 512K */
+#define CONFIG_SRIO_PCIE_BOOT_IMAGE_MEM_BUS2 0x3fff80000ull
+/*
+ * for slave UCODE and ENV instored in master memory space,
+ * PHYS must be aligned based on the SIZE
+ */
+#define CONFIG_SRIO_PCIE_BOOT_UCODE_ENV_MEM_PHYS 0xfef040000ull
+#define CONFIG_SRIO_PCIE_BOOT_UCODE_ENV_MEM_BUS 0x3ffe00000ull
+#define CONFIG_SRIO_PCIE_BOOT_UCODE_ENV_SIZE 0x40000	/* 256K */
+
+/* slave core release by master*/
+#define CONFIG_SRIO_PCIE_BOOT_BRR_OFFSET 0xe00e4
+#define CONFIG_SRIO_PCIE_BOOT_RELEASE_MASK 0x00000001 /* release core 0 */
+
+/*
+ * SRIO_PCIE_BOOT - SLAVE
+ */
+#ifdef CONFIG_SRIO_PCIE_BOOT_SLAVE
+#define CONFIG_SYS_SRIO_PCIE_BOOT_UCODE_ENV_ADDR 0xFFE00000
+#define CONFIG_SYS_SRIO_PCIE_BOOT_UCODE_ENV_ADDR_PHYS \
+		(0x300000000ull | CONFIG_SYS_SRIO_PCIE_BOOT_UCODE_ENV_ADDR)
+#endif
 
 /*
  * eSPI - Enhanced SPI
@@ -481,6 +527,16 @@ unsigned long get_board_sys_clk(unsigned long dummy);
 #elif defined(CONFIG_NAND)
 #define CONFIG_SYS_QE_FMAN_FW_IN_NAND
 #define CONFIG_SYS_QE_FMAN_FW_ADDR	(6 * CONFIG_SYS_NAND_BLOCK_SIZE)
+#elif defined(CONFIG_SRIO_PCIE_BOOT_SLAVE)
+/*
+ * Slave has no ucode locally, it can fetch this from remote. When implementing
+ * in two corenet boards, slave's ucode could be stored in master's memory
+ * space, the address can be mapped from slave TLB->slave LAW->
+ * slave SRIO or PCIE outbound window->master inbound window->
+ * master LAW->the ucode address in master's memory space.
+ */
+#define CONFIG_SYS_QE_FMAN_FW_IN_REMOTE
+#define CONFIG_SYS_QE_FMAN_FW_ADDR	0xFFE00000
 #else
 #define CONFIG_SYS_QE_FMAN_FW_IN_NOR
 #define CONFIG_SYS_QE_FMAN_FW_ADDR	0xEF000000
@@ -571,11 +627,17 @@ unsigned long get_board_sys_clk(unsigned long dummy);
 /*
 * USB
 */
+#define CONFIG_HAS_FSL_DR_USB
+#define CONFIG_HAS_FSL_MPH_USB
+
+#if defined(CONFIG_HAS_FSL_DR_USB) || defined(CONFIG_HAS_FSL_MPH_USB)
 #define CONFIG_CMD_USB
 #define CONFIG_USB_STORAGE
 #define CONFIG_USB_EHCI
 #define CONFIG_USB_EHCI_FSL
 #define CONFIG_EHCI_HCD_INIT_AFTER_RESET
+#endif
+
 #define CONFIG_CMD_EXT2
 
 #define CONFIG_MMC
@@ -645,8 +707,8 @@ unsigned long get_board_sys_clk(unsigned long dummy);
 	"hwconfig=fsl_ddr:ctlr_intlv=cacheline,"		\
 	"bank_intlv=cs0_cs1\0"					\
 	"netdev=eth0\0"						\
-	"uboot=" MK_STR(CONFIG_UBOOTPATH) "\0"			\
-	"ubootaddr=" MK_STR(CONFIG_SYS_TEXT_BASE) "\0"		\
+	"uboot=" __stringify(CONFIG_UBOOTPATH) "\0"			\
+	"ubootaddr=" __stringify(CONFIG_SYS_TEXT_BASE) "\0"		\
 	"tftpflash=tftpboot $loadaddr $uboot && "		\
 	"protect off $ubootaddr +$filesize && "			\
 	"erase $ubootaddr +$filesize && "			\
@@ -654,7 +716,7 @@ unsigned long get_board_sys_clk(unsigned long dummy);
 	"protect on $ubootaddr +$filesize && "			\
 	"cmp.b $loadaddr $ubootaddr $filesize\0"		\
 	"consoledev=ttyS0\0"					\
-	"usb_phy_type=" MK_STR(__USB_PHY_TYPE) "\0"		\
+	"usb_phy_type=" __stringify(__USB_PHY_TYPE) "\0"		\
 	"usb_dr_mode=host\0"					\
 	"ramdiskaddr=2000000\0"					\
 	"ramdiskfile=p2041rdb/ramdisk.uboot\0"			\

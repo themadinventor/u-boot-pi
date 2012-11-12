@@ -27,15 +27,15 @@
 #endif
 
 IPaddr_t	NetArpWaitPacketIP;
-IPaddr_t	NetArpWaitReplyIP;
+static IPaddr_t	NetArpWaitReplyIP;
 /* MAC address of waiting packet's destination */
 uchar	       *NetArpWaitPacketMAC;
 int		NetArpWaitTxPacketSize;
 ulong		NetArpWaitTimerStart;
 int		NetArpWaitTry;
 
-uchar	       *NetArpTxPacket;	/* THE ARP transmit packet */
-uchar		NetArpPacketBuf[PKTSIZE_ALIGN + PKTALIGN];
+static uchar   *NetArpTxPacket;	/* THE ARP transmit packet */
+static uchar	NetArpPacketBuf[PKTSIZE_ALIGN + PKTALIGN];
 
 void ArpInit(void)
 {
@@ -194,7 +194,7 @@ void ArpReceive(struct ethernet_hdr *et, struct ip_udp_hdr *ip, int len)
 #ifdef CONFIG_KEEP_SERVERADDR
 		if (NetServerIP == NetArpWaitPacketIP) {
 			char buf[20];
-			sprintf(buf, "%pM", arp->ar_sha);
+			sprintf(buf, "%pM", &arp->ar_sha);
 			setenv("serveraddr", buf);
 		}
 #endif

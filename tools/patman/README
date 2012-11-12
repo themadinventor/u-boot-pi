@@ -68,7 +68,10 @@ How to configure it
 For most cases patman will locate and use the file 'doc/git-mailrc' in
 your U-Boot directory. This contains most of the aliases you will need.
 
-To add your own, create a file ~/.config/patman directory like this:
+During the first run patman creates a config file for you by taking the default
+user name and email address from the global .gitconfig file.
+
+To add your own, create a file ~/.patman like this:
 
 >>>>
 # patman alias file
@@ -129,6 +132,11 @@ Series-version: n
 Series-prefix: prefix
 	Sets the subject prefix. Normally empty but it can be RFC for
 	RFC patches, or RESEND if you are being ignored.
+
+Series-name: name
+	Sets the name of the series. You don't need to have a name, and
+	patman does not yet use it, but it is convenient to put the branch
+	name here to help you keep track of multiple upstreaming efforts.
 
 Cover-letter:
 This is the patch set title

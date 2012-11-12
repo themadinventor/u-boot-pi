@@ -16,12 +16,20 @@
 
 #include <common.h>
 #include <asm/io.h>
+#include <asm/arch/wdog.h>
+
+#define RESET_TIMEOUT 10
 
 void reset_cpu(ulong addr)
 {
-	/*
-	 * We should probably use the WDT module here, but an unaligned
-	 * access will do the trick for now.
-	 */
-	readl(1);
+	struct bcm2835_wdog_regs *regs =
+		(struct bcm2835_wdog_regs *)BCM2835_WDOG_PHYSADDR;
+	uint32_t rstc;
+
+	rstc = readl(&regs->rstc);
+	rstc &= ~BCM2835_WDOG_RSTC_WRCFG_MASK;
+	rstc |= BCM2835_WDOG_RSTC_WRCFG_FULL_RESET;
+
+	writel(BCM2835_WDOG_PASSWORD | RESET_TIMEOUT, &regs->wdog);
+	writel(BCM2835_WDOG_PASSWORD | rstc, &regs->rstc);
 }

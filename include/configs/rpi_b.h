@@ -24,19 +24,30 @@
 #define CONFIG_BCM2835
 #define CONFIG_ARCH_CPU_INIT
 #define CONFIG_MISC_INIT_R
+/*
+ * 2835 is a SKU in a series for which the 2708 is the first or primary SoC,
+ * so 2708 has historically been used rather than a dedicated 2835 ID.
+ */
+#define CONFIG_MACH_TYPE		MACH_TYPE_BCM2708
 
 /* Timer */
 #define CONFIG_SYS_HZ			1000000
 
 /* Memory layout */
 #define CONFIG_NR_DRAM_BANKS		1
-#define CONFIG_SYS_TEXT_BASE		0x00008000
+
 #define CONFIG_SYS_SDRAM_BASE		0x00000000
-#define PHYS_SDRAM_SIZE			SZ_128M
+#define CONFIG_SYS_TEXT_BASE		0x00008000
 #define CONFIG_SYS_UBOOT_BASE		CONFIG_SYS_TEXT_BASE
-#define CONFIG_SYS_INIT_RAM_SIZE	PHYS_SDRAM_SIZE
+/*
+ * The board really has 256M. However, the VC (VideoCore co-processor) shares
+ * the RAM, and uses a configurable portion at the top. We tell U-Boot that a
+ * smaller amount of RAM is present in order to avoid stomping on the area
+ * the VC uses.
+ */
+#define CONFIG_SYS_SDRAM_SIZE		SZ_128M
 #define CONFIG_SYS_INIT_SP_ADDR		(CONFIG_SYS_SDRAM_BASE + \
-					 CONFIG_SYS_INIT_RAM_SIZE - \
+					 CONFIG_SYS_SDRAM_SIZE - \
 					 GENERATED_GBL_DATA_SIZE)
 #define CONFIG_SYS_MALLOC_LEN		SZ_4M
 #define CONFIG_SYS_MEMTEST_START	0x00100000
@@ -46,7 +57,8 @@
 #define CONFIG_SYS_NO_FLASH
 
 /* Devices */
-/* None yet */
+/* GPIO */
+#define CONFIG_BCM2835_GPIO
 
 /* Console UART */
 #define CONFIG_PL011_SERIAL
@@ -54,7 +66,6 @@
 #define CONFIG_PL01x_PORTS		{ (void *)0x20201000 }
 #define CONFIG_CONS_INDEX		0
 #define CONFIG_BAUDRATE			115200
-#define CONFIG_SYS_BAUDRATE_TABLE	{ 9600, 19200, 38400, 57600, 115200 }
 
 /* Console configuration */
 #define CONFIG_SYS_CBSIZE		1024
@@ -67,11 +78,6 @@
 #define CONFIG_SDHCI
 #define	CONFIG_MMC_SDHCI_IO_ACCESSORS
 #define CONFIG_BCM2835_SDHCI
-
-/* ATAGS */
-#define CONFIG_CMDLINE_TAG		1
-#define CONFIG_SETUP_MEMORY_TAGS	1
-#define CONFIG_INITRD_TAG		1
 
 /* Environment */
 #define CONFIG_ENV_SIZE			SZ_16K
@@ -109,6 +115,15 @@
 #define CONFIG_CMDLINE_EDITING
 #define CONFIG_COMMAND_HISTORY
 #define CONFIG_AUTO_COMPLETE
+
+
+/* Commands */
+#include <config_cmd_default.h>
+
+/* Some things don't make sense on this HW or yet */
+#undef CONFIG_CMD_FPGA
+#undef CONFIG_CMD_SAVEENV
+
 #define CONFIG_CMD_SOURCE
 
 /* USB Networking options */
@@ -133,5 +148,15 @@
 #define CONFIG_CMD_MMC
 #define CONFIG_CMD_FAT
 #define	CONFIG_CMD_EXT2
+
+#define CONFIG_CMD_BOOTZ
+#define CONFIG_CMD_GPIO
+
+/* Device tree support for bootm/bootz */
+#define CONFIG_OF_LIBFDT
+/* ATAGs support for bootm/bootz */
+#define CONFIG_SETUP_MEMORY_TAGS
+#define CONFIG_CMDLINE_TAG
+#define CONFIG_INITRD_TAG
 
 #endif

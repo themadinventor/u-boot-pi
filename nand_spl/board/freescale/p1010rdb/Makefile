@@ -32,6 +32,7 @@ include $(TOPDIR)/config.mk
 nandobj	:= $(OBJTREE)/nand_spl/
 
 LDSCRIPT= $(TOPDIR)/$(CPUDIR)/u-boot-nand_spl.lds
+LSTSCRIPT= $(nandobj)/board/$(BOARDDIR)/u-boot.lst
 LDFLAGS := -T $(nandobj)u-boot-nand_spl.lds -Ttext $(CONFIG_SYS_TEXT_BASE_SPL) $(LDFLAGS) \
 	   $(LDFLAGS_FINAL)
 AFLAGS	+= -DCONFIG_NAND_SPL
@@ -39,7 +40,8 @@ CFLAGS	+= -DCONFIG_NAND_SPL
 
 SOBJS	= start.o resetvec.o ticks.o
 COBJS	= cache.o cpu_init_early.o cpu_init_nand.o fsl_law.o law.o \
-	  nand_boot.o nand_boot_fsl_ifc.o ns16550.o tlb.o tlb_table.o
+	  nand_boot.o nand_boot_fsl_ifc.o ns16550.o tlb.o tlb_table.o \
+	  ../common.o
 
 SRCS	:= $(addprefix $(obj),$(SOBJS:.o=.S) $(COBJS:.o=.c))
 OBJS	:= $(addprefix $(obj),$(SOBJS) $(COBJS))
@@ -61,8 +63,13 @@ $(nandobj)u-boot-spl:	$(OBJS) $(nandobj)u-boot-nand_spl.lds
 		-Map $(nandobj)u-boot-spl.map \
 		-o $(nandobj)u-boot-spl
 
-$(nandobj)u-boot-nand_spl.lds: $(LDSCRIPT)
-	$(CPP) $(CPPFLAGS) $(LDPPFLAGS) -ansi -D__ASSEMBLY__ -P - <$^ >$@
+# The following line expands into whole rule which generates $(LSTSCRIPT),
+# the file containing u-boots LG-array linker section. This is included into
+# $(LDSCRIPT). The function make_u_boot_list is defined in helper.mk file.
+$(eval $(call make_u_boot_list, $(LSTSCRIPT), $(OBJS)))
+$(nandobj)u-boot-nand_spl.lds: $(LDSCRIPT) $(LSTSCRIPT)
+	$(CPP) $(CPPFLAGS) $(LDPPFLAGS) -I$(nandobj)board/$(BOARDDIR) \
+		 -ansi -D__ASSEMBLY__ -P - <$< >$@
 
 # create symbolic links for common files
 
@@ -123,6 +130,9 @@ ifneq ($(OBJTREE), $(SRCTREE))
 $(obj)nand_boot.c:
 	@rm -f $(obj)nand_boot.c
 	ln -s $(SRCTREE)/nand_spl/board/$(BOARDDIR)/nand_boot.c $(obj)nand_boot.c
+$(obj)../common.c:
+	@rm -f $(obj)../common.c
+	ln -s $(SRCTREE)/nand_spl/board/freescale/common.c $(obj)../common.c
 endif
 
 #########################################################################

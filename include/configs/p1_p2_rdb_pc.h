@@ -31,7 +31,7 @@
 #endif
 
 #if defined(CONFIG_P1020MBG)
-#define CONFIG_BOARDNAME "P1020MBG"
+#define CONFIG_BOARDNAME "P1020MBG-PC"
 #define CONFIG_P1020
 #define CONFIG_VSC7385_ENET
 #define CONFIG_SLIC
@@ -41,7 +41,7 @@
 #endif
 
 #if defined(CONFIG_P1020UTM)
-#define CONFIG_BOARDNAME "P1020UTM"
+#define CONFIG_BOARDNAME "P1020UTM-PC"
 #define CONFIG_P1020
 #define __SW_BOOT_MASK		0x03
 #define __SW_BOOT_NOR		0xe0
@@ -49,7 +49,7 @@
 #endif
 
 #if defined(CONFIG_P1020RDB)
-#define CONFIG_BOARDNAME "P1020RDB"
+#define CONFIG_BOARDNAME "P1020RDB-PC"
 #define CONFIG_NAND_FSL_ELBC
 #define CONFIG_P1020
 #define CONFIG_SPI_FLASH
@@ -64,7 +64,7 @@
 #endif
 
 #if defined(CONFIG_P1021RDB)
-#define CONFIG_BOARDNAME "P1021RDB"
+#define CONFIG_BOARDNAME "P1021RDB-PC"
 #define CONFIG_NAND_FSL_ELBC
 #define CONFIG_P1021
 #define CONFIG_QE
@@ -111,7 +111,7 @@
 #endif
 
 #if defined(CONFIG_P2020RDB)
-#define CONFIG_BOARDNAME "P2020RDB"
+#define CONFIG_BOARDNAME "P2020RDB-PCA"
 #define CONFIG_NAND_FSL_ELBC
 #define CONFIG_P2020
 #define CONFIG_SPI_FLASH
@@ -357,7 +357,7 @@
 #define CONFIG_SYS_FLASH_BASE_PHYS	CONFIG_SYS_FLASH_BASE
 #endif
 
-#define CONFIG_FLASH_BR_PRELIM (BR_PHYS_ADDR((CONFIG_SYS_FLASH_BASE_PHYS)) \
+#define CONFIG_FLASH_BR_PRELIM (BR_PHYS_ADDR(CONFIG_SYS_FLASH_BASE_PHYS) \
 	| BR_PS_16 | BR_V)
 
 #define CONFIG_FLASH_OR_PRELIM	0xfc000ff7
@@ -401,7 +401,7 @@
 #define CONFIG_SYS_NAND_U_BOOT_RELOC	0x00010000
 #define CONFIG_SYS_NAND_U_BOOT_RELOC_SP	(CONFIG_SYS_NAND_U_BOOT_RELOC + 0x10000)
 
-#define CONFIG_SYS_NAND_BR_PRELIM (BR_PHYS_ADDR((CONFIG_SYS_NAND_BASE_PHYS)) \
+#define CONFIG_SYS_NAND_BR_PRELIM (BR_PHYS_ADDR(CONFIG_SYS_NAND_BASE_PHYS) \
 	| (2<<BR_DECC_SHIFT)	/* Use HW ECC */ \
 	| BR_PS_8	/* Port Size = 8 bit */ \
 	| BR_MS_FCM	/* MSEL = FCM */ \
@@ -523,9 +523,6 @@
 
 /* Use the HUSH parser */
 #define CONFIG_SYS_HUSH_PARSER
-#ifdef CONFIG_SYS_HUSH_PARSER
-#define CONFIG_SYS_PROMPT_HUSH_PS2 "> "
-#endif
 
 /*
  * Pass open firmware flat tree
@@ -874,15 +871,15 @@ i2c mw 18 3 __SW_BOOT_MASK 1; reset
 
 #define	CONFIG_EXTRA_ENV_SETTINGS	\
 "netdev=eth0\0"	\
-"uboot=" MK_STR(CONFIG_UBOOTPATH) "\0"	\
+"uboot=" __stringify(CONFIG_UBOOTPATH) "\0"	\
 "loadaddr=1000000\0"	\
 "bootfile=uImage\0"	\
 "tftpflash=tftpboot $loadaddr $uboot; "	\
-	"protect off " MK_STR(CONFIG_SYS_TEXT_BASE) " +$filesize; "	\
-	"erase " MK_STR(CONFIG_SYS_TEXT_BASE) " +$filesize; "	\
-	"cp.b $loadaddr " MK_STR(CONFIG_SYS_TEXT_BASE) " $filesize; "	\
-	"protect on " MK_STR(CONFIG_SYS_TEXT_BASE) " +$filesize; "	\
-	"cmp.b $loadaddr " MK_STR(CONFIG_SYS_TEXT_BASE) " $filesize\0"	\
+	"protect off " __stringify(CONFIG_SYS_TEXT_BASE) " +$filesize; " \
+	"erase " __stringify(CONFIG_SYS_TEXT_BASE) " +$filesize; "	\
+	"cp.b $loadaddr " __stringify(CONFIG_SYS_TEXT_BASE) " $filesize; " \
+	"protect on " __stringify(CONFIG_SYS_TEXT_BASE) " +$filesize; "	\
+	"cmp.b $loadaddr " __stringify(CONFIG_SYS_TEXT_BASE) " $filesize\0" \
 "hwconfig=usb1:dr_mode=host,phy_type=ulpi\0"    \
 "consoledev=ttyS0\0"	\
 "ramdiskaddr=2000000\0"	\
@@ -898,11 +895,11 @@ i2c mw 18 3 __SW_BOOT_MASK 1; reset
 "ramdisk_size=120000\0"	\
 "map_lowernorbank=i2c dev 1; i2c mw 18 1 02 1; i2c mw 18 3 fd 1\0" \
 "map_uppernorbank=i2c dev 1; i2c mw 18 1 00 1; i2c mw 18 3 fd 1\0" \
-MK_STR(__NOR_RST_CMD)"\0" \
-MK_STR(__SPI_RST_CMD)"\0" \
-MK_STR(__SD_RST_CMD)"\0" \
-MK_STR(__NAND_RST_CMD)"\0" \
-MK_STR(__PCIE_RST_CMD)"\0"
+__stringify(__NOR_RST_CMD)"\0" \
+__stringify(__SPI_RST_CMD)"\0" \
+__stringify(__SD_RST_CMD)"\0" \
+__stringify(__NAND_RST_CMD)"\0" \
+__stringify(__PCIE_RST_CMD)"\0"
 
 #define CONFIG_NFSBOOTCOMMAND	\
 "setenv bootargs root=/dev/nfs rw "	\

@@ -27,15 +27,16 @@
 
 static int do_errata(cmd_tbl_t *cmdtp, int flag, int argc, char * const argv[])
 {
+#ifdef CONFIG_SYS_FSL_ERRATUM_NMG_CPU_A011
+	extern int enable_cpu_a011_workaround;
+#endif
 	__maybe_unused u32 svr = get_svr();
 
 #if defined(CONFIG_FSL_SATA_V2) && defined(CONFIG_FSL_SATA_ERRATUM_A001)
 	if (IS_SVR_REV(svr, 1, 0)) {
 		switch (SVR_SOC_VER(svr)) {
 		case SVR_P1013:
-		case SVR_P1013_E:
 		case SVR_P1022:
-		case SVR_P1022_E:
 			puts("Work-around for Erratum SATA A001 enabled\n");
 		}
 	}
@@ -51,7 +52,17 @@ static int do_errata(cmd_tbl_t *cmdtp, int flag, int argc, char * const argv[])
 	puts("Work-around for Erratum SERDES-A005 enabled\n");
 #endif
 #if defined(CONFIG_SYS_P4080_ERRATUM_CPU22)
-	puts("Work-around for Erratum CPU22 enabled\n");
+	if (SVR_MAJ(svr) < 3)
+		puts("Work-around for Erratum CPU22 enabled\n");
+#endif
+#ifdef CONFIG_SYS_FSL_ERRATUM_NMG_CPU_A011
+	/*
+	 * NMG_CPU_A011 applies to P4080 rev 1.0, 2.0, fixed in 3.0
+	 * also applies to P3041 rev 1.0, 1.1, P2041 rev 1.0, 1.1
+	 * The SVR has been checked by cpu_init_r().
+	 */
+	if (enable_cpu_a011_workaround)
+		puts("Work-around for Erratum CPU-A011 enabled\n");
 #endif
 #if defined(CONFIG_SYS_FSL_ERRATUM_CPU_A003999)
 	puts("Work-around for Erratum CPU-A003999 enabled\n");
@@ -65,11 +76,15 @@ static int do_errata(cmd_tbl_t *cmdtp, int flag, int argc, char * const argv[])
 #if defined(CONFIG_SYS_FSL_ERRATUM_ESDHC111)
 	puts("Work-around for Erratum ESDHC111 enabled\n");
 #endif
+#ifdef CONFIG_SYS_FSL_ERRATUM_A004468
+	puts("Work-around for Erratum A004468 enabled\n");
+#endif
 #if defined(CONFIG_SYS_FSL_ERRATUM_ESDHC135)
 	puts("Work-around for Erratum ESDHC135 enabled\n");
 #endif
-#if defined(CONFIG_SYS_FSL_ERRATUM_ESDHC136)
-	puts("Work-around for Erratum ESDHC136 enabled\n");
+#if defined(CONFIG_SYS_FSL_ERRATUM_ESDHC13)
+	if (SVR_MAJ(svr) < 3)
+		puts("Work-around for Erratum ESDHC13 enabled\n");
 #endif
 #if defined(CONFIG_SYS_FSL_ERRATUM_ESDHC_A001)
 	puts("Work-around for Erratum ESDHC-A001 enabled\n");
@@ -112,6 +127,15 @@ static int do_errata(cmd_tbl_t *cmdtp, int flag, int argc, char * const argv[])
 #ifdef CONFIG_SYS_FSL_ERRATUM_NMG_ETSEC129
 	if ((SVR_MAJ(svr) == 1) || IS_SVR_REV(svr, 2, 0))
 		puts("Work-around for Erratum NMG ETSEC129 enabled\n");
+#endif
+#ifdef CONFIG_SYS_FSL_ERRATUM_A004510
+	puts("Work-around for Erratum A004510 enabled\n");
+#endif
+#ifdef CONFIG_SYS_FSL_ERRATUM_SRIO_A004034
+	puts("Work-around for Erratum SRIO-A004034 enabled\n");
+#endif
+#ifdef CONFIG_SYS_FSL_ERRATUM_A_004934
+	puts("Work-around for Erratum A004934 enabled\n");
 #endif
 	return 0;
 }

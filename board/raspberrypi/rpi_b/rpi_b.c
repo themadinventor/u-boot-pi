@@ -26,13 +26,15 @@ DECLARE_GLOBAL_DATA_PTR;
 
 int dram_init(void)
 {
-	gd->ram_size = PHYS_SDRAM_SIZE;
+	gd->ram_size = CONFIG_SYS_SDRAM_SIZE;
 
 	return 0;
 }
 
 int board_init(void)
 {
+	gd->bd->bi_boot_params = 0x100;
+
 	return 0;
 }
 

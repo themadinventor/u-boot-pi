@@ -28,6 +28,7 @@
 #include <asm/arch/clock.h>
 #include <asm/arch/clk.h>
 #include <asm/arch/mipi_dsim.h>
+#include <asm/arch/dp_info.h>
 #include <asm/arch/system.h>
 
 #include "exynos_fb.h"
@@ -43,9 +44,6 @@ short console_col;
 short console_row;
 
 static unsigned int panel_width, panel_height;
-
-/* LCD Panel data */
-vidinfo_t panel_info;
 
 static void exynos_lcd_init_mem(void *lcdbase, vidinfo_t *vid)
 {
@@ -94,6 +92,9 @@ static void lcd_panel_on(vidinfo_t *vid)
 
 	udelay(vid->power_on_delay);
 
+	if (vid->dp_enabled)
+		exynos_init_dp();
+
 	if (vid->reset_lcd) {
 		vid->reset_lcd();
 		udelay(vid->reset_delay);
@@ -133,7 +134,6 @@ void lcd_enable(void)
 	if (panel_info.logo_on) {
 		memset(lcd_base, 0, panel_width * panel_height *
 				(NBITS(panel_info.vl_bpix) >> 3));
-
 		draw_logo();
 	}
 

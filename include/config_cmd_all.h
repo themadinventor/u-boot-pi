@@ -55,7 +55,6 @@
 #define CONFIG_CMD_LOADS	/* loads			*/
 #define CONFIG_CMD_MEMORY	/* md mm nm mw cp cmp crc base loop mtest */
 #define CONFIG_CMD_MFSL		/* FSL support for Microblaze	*/
-#define CONFIG_CMD_MG_DISK	/* mGine m(g)flash IO node support */
 #define CONFIG_CMD_MII		/* MII support			*/
 #define CONFIG_CMD_MISC		/* Misc functions like sleep etc*/
 #define CONFIG_CMD_MMC		/* MMC support			*/
@@ -88,5 +87,6 @@
 #define CONFIG_CMD_UNZIP	/* unzip from memory to memory	*/
 #define CONFIG_CMD_USB		/* USB Support			*/
 #define CONFIG_CMD_XIMG		/* Load part of Multi Image	*/
+#define CONFIG_CMD_ZFS		/* ZFS Support			*/
 
 #endif	/* _CONFIG_CMD_ALL_H */

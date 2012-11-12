@@ -56,6 +56,7 @@ static unsigned conflicts;
 static unsigned nprobes;
 static unsigned nclaims;
 static int ready;
+static unsigned int seed;
 
 static void link_local_timeout(void);
 
@@ -68,7 +69,7 @@ static IPaddr_t pick(void)
 	unsigned tmp;
 
 	do {
-		tmp = rand() & IN_CLASSB_HOST;
+		tmp = rand_r(&seed) & IN_CLASSB_HOST;
 	} while (tmp > (IN_CLASSB_HOST - 0x0200));
 	return (IPaddr_t) htonl((LINKLOCAL_ADDR + 0x0100) + tmp);
 }
@@ -78,7 +79,7 @@ static IPaddr_t pick(void)
  */
 static inline unsigned random_delay_ms(unsigned secs)
 {
-	return rand() % (secs * 1000);
+	return rand_r(&seed) % (secs * 1000);
 }
 
 static void configure_wait(void)
@@ -109,7 +110,7 @@ void link_local_start(void)
 	}
 	NetOurSubnetMask = IN_CLASSB_NET;
 
-	srand_mac();
+	seed = seed_mac();
 	if (ip == 0)
 		ip = pick();
 
@@ -224,12 +225,13 @@ void link_local_receive_arp(struct arp_hdr *arp, int len)
 			timeout_ms = diff | 1; /* never 0 */
 		}
 	}
-/*
- * XXX Don't bother with ethernet link just yet
+#if 0
+ /* XXX Don't bother with ethernet link just yet */
 	if ((fds[0].revents & POLLIN) == 0) {
 		if (fds[0].revents & POLLERR) {
-			// FIXME: links routinely go down;
-			// this shouldn't necessarily exit.
+			/*
+			 * FIXME: links routinely go down;
+			 */
 			bb_error_msg("iface %s is down", eth_get_name());
 			if (ready) {
 				run(argv, "deconfig", &ip);
@@ -238,7 +240,7 @@ void link_local_receive_arp(struct arp_hdr *arp, int len)
 		}
 		continue;
 	}
-*/
+#endif
 
 	debug_cond(DEBUG_INT_STATE, "%s recv arp type=%d, op=%d,\n",
 		eth_get_name(), ntohs(arp->ar_pro),

@@ -39,9 +39,10 @@ typedef volatile unsigned char	vu_char;
 #include <linux/bitops.h>
 #include <linux/types.h>
 #include <linux/string.h>
+#include <linux/stringify.h>
 #include <asm/ptrace.h>
 #include <stdarg.h>
-#if defined(CONFIG_PCI) && (defined(CONFIG_4xx) && !defined(CONFIG_AP1000))
+#if defined(CONFIG_PCI) && defined(CONFIG_4xx)
 #include <pci.h>
 #endif
 #if defined(CONFIG_8xx)
@@ -194,18 +195,6 @@ typedef void (interrupt_handler_t)(void *);
 # endif
 #endif
 
-#ifndef CONFIG_SERIAL_MULTI
-
-#if defined(CONFIG_8xx_CONS_SMC1) || defined(CONFIG_8xx_CONS_SMC2) \
- || defined(CONFIG_8xx_CONS_SCC1) || defined(CONFIG_8xx_CONS_SCC2) \
- || defined(CONFIG_8xx_CONS_SCC3) || defined(CONFIG_8xx_CONS_SCC4)
-
-#define CONFIG_SERIAL_MULTI	1
-
-#endif
-
-#endif /* CONFIG_SERIAL_MULTI */
-
 /*
  * General Purpose Utilities
  */
@@ -286,6 +275,19 @@ int	print_buffer (ulong addr, void* data, uint width, uint count, uint linelen);
 /* common/main.c */
 void	main_loop	(void);
 int run_command(const char *cmd, int flag);
+
+/**
+ * Run a list of commands separated by ; or even \0
+ *
+ * Note that if 'len' is not -1, then the command does not need to be nul
+ * terminated, Memory will be allocated for the command in that case.
+ *
+ * @param cmd	List of commands to run, each separated bu semicolon
+ * @param len	Length of commands excluding terminator if known (-1 if not)
+ * @param flag	Execution flags (CMD_FLAG_...)
+ * @return 0 on success, or != 0 on error.
+ */
+int run_command_list(const char *cmd, int len, int flag);
 int	readline	(const char *const prompt);
 int	readline_into_buffer(const char *const prompt, char *buffer,
 			int timeout);
@@ -325,6 +327,12 @@ void	doc_probe(unsigned long physadr);
 /* common/cmd_net.c */
 int do_tftpb(cmd_tbl_t *cmdtp, int flag, int argc, char * const argv[]);
 
+/* common/cmd_fat.c */
+int do_fat_fsload(cmd_tbl_t *, int, int, char * const []);
+
+/* common/cmd_ext2.c */
+int do_ext2load(cmd_tbl_t *, int, int, char * const []);
+
 /* common/cmd_nvedit.c */
 int	env_init     (void);
 void	env_relocate (void);
@@ -333,13 +341,9 @@ char	*getenv	     (const char *);
 int	getenv_f     (const char *name, char *buf, unsigned len);
 ulong getenv_ulong(const char *name, int base, ulong default_val);
 int	saveenv	     (void);
-#ifdef CONFIG_PPC		/* ARM version to be fixed! */
-int inline setenv    (const char *, const char *);
-#else
 int	setenv	     (const char *, const char *);
 int setenv_ulong(const char *varname, ulong value);
 int setenv_addr(const char *varname, const void *addr);
-#endif /* CONFIG_PPC */
 #ifdef CONFIG_ARM
 # include <asm/mach-types.h>
 # include <asm/setup.h>
@@ -368,7 +372,7 @@ void	pci_init      (void);
 void	pci_init_board(void);
 void	pciinfo	      (int, int);
 
-#if defined(CONFIG_PCI) && (defined(CONFIG_4xx) && !defined(CONFIG_AP1000))
+#if defined(CONFIG_PCI) && defined(CONFIG_4xx)
     int	   pci_pre_init	       (struct pci_controller *);
     int	   is_pci_host	       (struct pci_controller *);
 #endif
@@ -651,7 +655,7 @@ static inline ulong get_ddr_freq(ulong dummy)
 }
 #endif
 
-#if defined(CONFIG_4xx) || defined(CONFIG_IOP480)
+#if defined(CONFIG_4xx)
 #  if defined(CONFIG_440)
 #	if defined(CONFIG_440SPE)
 	 unsigned long determine_sysper(void);
@@ -754,6 +758,16 @@ char *	strmhz(char *buf, unsigned long hz);
 /* lib/crc32.c */
 #include <u-boot/crc.h>
 
+/* lib/rand.c */
+#if defined(CONFIG_RANDOM_MACADDR) || \
+	defined(CONFIG_BOOTP_RANDOM_DELAY) || \
+	defined(CONFIG_CMD_LINK_LOCAL)
+#define RAND_MAX -1U
+void srand(unsigned int seed);
+unsigned int rand(void);
+unsigned int rand_r(unsigned int *seedp);
+#endif
+
 /* common/console.c */
 int	console_init_f(void);	/* Before relocation; uses the serial  stuff	*/
 int	console_init_r(void);	/* After  relocation; uses the console stuff	*/
@@ -799,6 +813,13 @@ void	fputs(int file, const char *s);
 void	fputc(int file, const char c);
 int	ftstc(int file);
 int	fgetc(int file);
+
+/* lib/gzip.c */
+int gzip(void *dst, unsigned long *lenp,
+		unsigned char *src, unsigned long srclen);
+int zzip(void *dst, unsigned long *lenp, unsigned char *src,
+		unsigned long srclen, int stoponerr,
+		int (*func)(unsigned long, unsigned long));
 
 /* lib/net_utils.c */
 #include <net.h>
@@ -928,11 +949,25 @@ int cpu_release(int nr, int argc, char * const argv[]);
  * of a function scoped static buffer.  It can not be used to create a cache
  * line aligned global buffer.
  */
-#define ALLOC_CACHE_ALIGN_BUFFER(type, name, size)			\
-	char __##name[ROUND(size * sizeof(type), ARCH_DMA_MINALIGN) +	\
-		      ARCH_DMA_MINALIGN - 1];				\
+#define ALLOC_ALIGN_BUFFER(type, name, size, align)			\
+	char __##name[ROUND(size * sizeof(type), align) + (align - 1)];	\
 									\
-	type *name = (type *) ALIGN((uintptr_t)__##name, ARCH_DMA_MINALIGN)
+	type *name = (type *) ALIGN((uintptr_t)__##name, align)
+#define ALLOC_CACHE_ALIGN_BUFFER(type, name, size)			\
+	ALLOC_ALIGN_BUFFER(type, name, size, ARCH_DMA_MINALIGN)
+
+/*
+ * DEFINE_CACHE_ALIGN_BUFFER() is similar to ALLOC_CACHE_ALIGN_BUFFER, but it's
+ * purpose is to allow allocating aligned buffers outside of function scope.
+ * Usage of this macro shall be avoided or used with extreme care!
+ */
+#define DEFINE_ALIGN_BUFFER(type, name, size, align)			\
+	static char __##name[roundup(size * sizeof(type), align)]	\
+			__attribute__((aligned(align)));				\
+									\
+	static type *name = (type *)__##name
+#define DEFINE_CACHE_ALIGN_BUFFER(type, name, size)			\
+	DEFINE_ALIGN_BUFFER(type, name, size, ARCH_DMA_MINALIGN)
 
 /* Pull in stuff for the build system */
 #ifdef DO_DEPS_ONLY

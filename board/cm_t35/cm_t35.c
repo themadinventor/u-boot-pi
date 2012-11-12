@@ -74,7 +74,7 @@ static u32 gpmc_nand_config[GPMC_MAX_REG] = {
 
 /*
  * Routine: board_init
- * Description: Early hardware init.
+ * Description: hardware init.
  */
 int board_init(void)
 {
@@ -95,6 +95,39 @@ int board_init(void)
 #if defined(CONFIG_STATUS_LED) && defined(STATUS_LED_BOOT)
 	status_led_set(STATUS_LED_BOOT, STATUS_LED_ON);
 #endif
+
+	return 0;
+}
+
+static u32 cm_t3x_rev;
+
+/*
+ * Routine: get_board_rev
+ * Description: read system revision
+ */
+u32 get_board_rev(void)
+{
+	if (!cm_t3x_rev)
+		cm_t3x_rev = cm_t3x_eeprom_get_board_rev();
+
+	return cm_t3x_rev;
+};
+
+/*
+ * Routine: misc_init_r
+ * Description: display die ID
+ */
+int misc_init_r(void)
+{
+	u32 board_rev = get_board_rev();
+	u32 rev_major = board_rev / 100;
+	u32 rev_minor = board_rev - (rev_major * 100);
+
+	if ((rev_minor / 10) * 10 == rev_minor)
+		rev_minor = rev_minor / 10;
+
+	printf("PCB:   %u.%u\n", rev_major, rev_minor);
+	dieid_num_r();
 
 	return 0;
 }
@@ -405,7 +438,7 @@ int board_eth_init(bd_t *bis)
 
 	rc1 = handle_mac_address();
 	if (rc1)
-		printf("CM-T3x: No MAC address found\n");
+		printf("No MAC address found! ");
 
 	rc1 = smc911x_initialize(0, CM_T3X_SMC911X_BASE);
 	if (rc1 > 0)

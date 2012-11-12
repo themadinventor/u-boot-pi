@@ -29,6 +29,16 @@
 #include <usb_defs.h>
 #include <usbdescriptors.h>
 
+/*
+ * The EHCI spec says that we must align to at least 32 bytes.  However,
+ * some platforms require larger alignment.
+ */
+#if ARCH_DMA_MINALIGN > 32
+#define USB_DMA_MINALIGN	ARCH_DMA_MINALIGN
+#else
+#define USB_DMA_MINALIGN	32
+#endif
+
 /* Everything is aribtrary */
 #define USB_ALTSETTINGALLOC		4
 #define USB_MAXALTSETTING		128	/* Hard limit */
@@ -130,6 +140,8 @@ struct usb_device {
 	int portnr;
 	struct usb_device *parent;
 	struct usb_device *children[USB_MAXCHILDREN];
+
+	void *controller;		/* hardware controller private data */
 };
 
 /**********************************************************************
@@ -144,8 +156,9 @@ struct usb_device {
 	defined(CONFIG_USB_BLACKFIN) || defined(CONFIG_USB_AM35X) || \
 	defined(CONFIG_USB_DWC_OTG)
 
-int usb_lowlevel_init(void);
-int usb_lowlevel_stop(void);
+int usb_lowlevel_init(int index, void **controller);
+int usb_lowlevel_stop(int index);
+
 int submit_bulk_msg(struct usb_device *dev, unsigned long pipe,
 			void *buffer, int transfer_len);
 int submit_control_msg(struct usb_device *dev, unsigned long pipe, void *buffer,
@@ -156,6 +169,17 @@ int submit_int_msg(struct usb_device *dev, unsigned long pipe, void *buffer,
 /* Defines */
 #define USB_UHCI_VEND_ID	0x8086
 #define USB_UHCI_DEV_ID		0x7112
+
+/*
+ * PXA25x can only act as USB device. There are drivers
+ * which works with USB CDC gadgets implementations.
+ * Some of them have common routines which can be used
+ * in boards init functions e.g. udc_disconnect() used for
+ * forced device disconnection from host.
+ */
+#elif defined(CONFIG_USB_GADGET_PXA2XX)
+
+extern void udc_disconnect(void);
 
 #else
 #error USB Lowlevel not defined
@@ -373,7 +397,8 @@ void usb_hub_reset(void);
 int hub_port_reset(struct usb_device *dev, int port,
 			  unsigned short *portstat);
 
-struct usb_device *usb_alloc_new_device(void);
+struct usb_device *usb_alloc_new_device(void *controller);
+
 int usb_new_device(struct usb_device *dev);
 
 #endif /*_USB_H_ */

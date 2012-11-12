@@ -15,9 +15,10 @@
 #ifndef __CONFIG_H
 #define __CONFIG_H
 
+#include <asm/arch/imx-regs.h>
+
 /* High Level Configuration Options */
 
-#define CONFIG_MX25_CLK32		32768	/* OSC32K frequency */
 #define CONFIG_SYS_HZ			1000
 #define CONFIG_SYS_TEXT_BASE		0x81200000
 
@@ -42,22 +43,23 @@
 #define CONFIG_BOARD_EARLY_INIT_F
 
 #define CONFIG_SYS_SDRAM_BASE		PHYS_SDRAM_1
-#define CONFIG_SYS_INIT_SP_ADDR		(CONFIG_SYS_SDRAM_BASE + 0x1000 - \
-						GENERATED_GBL_DATA_SIZE)
+#define CONFIG_SYS_INIT_RAM_ADDR	IMX_RAM_BASE
+#define CONFIG_SYS_INIT_RAM_SIZE	IMX_RAM_SIZE
+
+#define CONFIG_SYS_INIT_SP_OFFSET \
+	(CONFIG_SYS_INIT_RAM_SIZE - GENERATED_GBL_DATA_SIZE)
+#define CONFIG_SYS_INIT_SP_ADDR \
+	(CONFIG_SYS_INIT_RAM_ADDR + CONFIG_SYS_INIT_SP_OFFSET)
 
 /* Memory Test */
 #define CONFIG_SYS_MEMTEST_START	(PHYS_SDRAM_1 + PHYS_SDRAM_1_SIZE/2)
 #define CONFIG_SYS_MEMTEST_END		(PHYS_SDRAM_1 + PHYS_SDRAM_1_SIZE)
-
-/* Stack sizes */
-#define CONFIG_STACKSIZE	(128 * 1024)	/* regular stack */
 
 /* Serial Info */
 #define CONFIG_MXC_UART
 #define CONFIG_MXC_UART_BASE	UART1_BASE
 #define CONFIG_CONS_INDEX	1	/* use UART0 for console */
 #define CONFIG_BAUDRATE		115200	/* Default baud rate */
-#define CONFIG_SYS_BAUDRATE_TABLE	{ 9600, 19200, 38400, 57600, 115200 }
 
 /* No NOR flash present */
 #define CONFIG_ENV_OFFSET      (6 * 64 * 1024)

@@ -17,95 +17,44 @@
  */
 
 #include <common.h>
+#include <errno.h>
+#include <spl.h>
 #include <asm/arch/cpu.h>
 #include <asm/arch/hardware.h>
 #include <asm/arch/omap.h>
 #include <asm/arch/ddr_defs.h>
 #include <asm/arch/clock.h>
+#include <asm/arch/gpio.h>
 #include <asm/arch/mmc_host_def.h>
-#include <asm/arch/common_def.h>
+#include <asm/arch/sys_proto.h>
 #include <asm/io.h>
-#include <asm/omap_common.h>
+#include <asm/emif.h>
+#include <asm/gpio.h>
+#include <i2c.h>
+#include <miiphy.h>
+#include <cpsw.h>
 
 DECLARE_GLOBAL_DATA_PTR;
 
-struct wd_timer *wdtimer = (struct wd_timer *)WDT_BASE;
-struct gptimer *timer_base = (struct gptimer *)CONFIG_SYS_TIMERBASE;
-struct uart_sys *uart_base = (struct uart_sys *)DEFAULT_UART_BASE;
+static const struct gpio_bank gpio_bank_am33xx[4] = {
+	{ (void *)AM33XX_GPIO0_BASE, METHOD_GPIO_24XX },
+	{ (void *)AM33XX_GPIO1_BASE, METHOD_GPIO_24XX },
+	{ (void *)AM33XX_GPIO2_BASE, METHOD_GPIO_24XX },
+	{ (void *)AM33XX_GPIO3_BASE, METHOD_GPIO_24XX },
+};
 
-/* UART Defines */
-#ifdef CONFIG_SPL_BUILD
-#define UART_RESET		(0x1 << 1)
-#define UART_CLK_RUNNING_MASK	0x1
-#define UART_SMART_IDLE_EN	(0x1 << 0x3)
-#endif
-
-/*
- * early system init of muxing and clocks.
- */
-void s_init(void)
-{
-	/* WDT1 is already running when the bootloader gets control
-	 * Disable it to avoid "random" resets
-	 */
-	writel(0xAAAA, &wdtimer->wdtwspr);
-	while (readl(&wdtimer->wdtwwps) != 0x0)
-		;
-	writel(0x5555, &wdtimer->wdtwspr);
-	while (readl(&wdtimer->wdtwwps) != 0x0)
-		;
-
-#ifdef CONFIG_SPL_BUILD
-	/* Setup the PLLs and the clocks for the peripherals */
-	pll_init();
-
-	/* UART softreset */
-	u32 regVal;
-
-	enable_uart0_pin_mux();
-
-	regVal = readl(&uart_base->uartsyscfg);
-	regVal |= UART_RESET;
-	writel(regVal, &uart_base->uartsyscfg);
-	while ((readl(&uart_base->uartsyssts) &
-		UART_CLK_RUNNING_MASK) != UART_CLK_RUNNING_MASK)
-		;
-
-	/* Disable smart idle */
-	regVal = readl(&uart_base->uartsyscfg);
-	regVal |= UART_SMART_IDLE_EN;
-	writel(regVal, &uart_base->uartsyscfg);
-
-	/* Initialize the Timer */
-	init_timer();
-
-	preloader_console_init();
-
-	config_ddr();
-#endif
-
-	/* Enable MMC0 */
-	enable_mmc0_pin_mux();
-}
-
-/* Initialize timer */
-void init_timer(void)
-{
-	/* Reset the Timer */
-	writel(0x2, (&timer_base->tscir));
-
-	/* Wait until the reset is done */
-	while (readl(&timer_base->tiocp_cfg) & 1)
-		;
-
-	/* Start the Timer */
-	writel(0x1, (&timer_base->tclr));
-}
+const struct gpio_bank *const omap_gpio_bank = gpio_bank_am33xx;
 
 #if defined(CONFIG_OMAP_HSMMC) && !defined(CONFIG_SPL_BUILD)
-int board_mmc_init(bd_t *bis)
+int cpu_mmc_init(bd_t *bis)
 {
-	return omap_mmc_init(0, 0, 0);
+	int ret;
+
+	ret = omap_mmc_init(0, 0, 0);
+	if (ret)
+		return ret;
+
+	return omap_mmc_init(1, 0, 0);
 }
 #endif
 

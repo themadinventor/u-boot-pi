@@ -34,10 +34,13 @@
 #include <asm/arch/mipi_dsim.h>
 #include <asm/arch/watchdog.h>
 #include <asm/arch/power.h>
-#include <pmic.h>
+#include <power/pmic.h>
 #include <usb/s3c_udc.h>
-#include <max8997_pmic.h>
+#include <power/max8997_pmic.h>
 #include <libtizen.h>
+#include <power/max8997_muic.h>
+#include <power/battery.h>
+#include <power/max17042_fg.h>
 
 #include "setup.h"
 
@@ -59,6 +62,8 @@ static int hwrevision(int rev)
 	return (board_rev & 0xf) == rev;
 }
 
+struct s3c_plat_otg_data s5pc210_otg_data;
+
 int board_init(void)
 {
 	gd->bd->bi_boot_params = PHYS_SDRAM_1 + 0x100;
@@ -66,9 +71,289 @@ int board_init(void)
 	check_hw_revision();
 	printf("HW Revision:\t0x%x\n", board_rev);
 
-#if defined(CONFIG_PMIC)
-	pmic_init();
-#endif
+	return 0;
+}
+
+void i2c_init_board(void)
+{
+	struct exynos4_gpio_part1 *gpio1 =
+		(struct exynos4_gpio_part1 *)samsung_get_base_gpio_part1();
+	struct exynos4_gpio_part2 *gpio2 =
+		(struct exynos4_gpio_part2 *)samsung_get_base_gpio_part2();
+
+	/* I2C_5 -> PMIC */
+	s5p_gpio_direction_output(&gpio1->b, 7, 1);
+	s5p_gpio_direction_output(&gpio1->b, 6, 1);
+	/* I2C_9 -> FG */
+	s5p_gpio_direction_output(&gpio2->y4, 0, 1);
+	s5p_gpio_direction_output(&gpio2->y4, 1, 1);
+}
+
+static void trats_low_power_mode(void)
+{
+	struct exynos4_clock *clk =
+	    (struct exynos4_clock *)samsung_get_base_clock();
+	struct exynos4_power *pwr =
+	    (struct exynos4_power *)samsung_get_base_power();
+
+	/* Power down CORE1 */
+	/* LOCAL_PWR_CFG [1:0] 0x3 EN, 0x0 DIS */
+	writel(0x0, &pwr->arm_core1_configuration);
+
+	/* Change the APLL frequency */
+	/* ENABLE (1 enable) | LOCKED (1 locked)  */
+	/* [31]              | [29]               */
+	/* FSEL      | MDIV          | PDIV            | SDIV */
+	/* [27]      | [25:16]       | [13:8]          | [2:0]      */
+	writel(0xa0c80604, &clk->apll_con0);
+
+	/* Change CPU0 clock divider */
+	/* CORE2_RATIO  | APLL_RATIO   | PCLK_DBG_RATIO | ATB_RATIO  */
+	/* [30:28]      | [26:24]      | [22:20]        | [18:16]    */
+	/* PERIPH_RATIO | COREM1_RATIO | COREM0_RATIO   | CORE_RATIO */
+	/* [14:12]      | [10:8]       | [6:4]          | [2:0]      */
+	writel(0x00000100, &clk->div_cpu0);
+
+	/* CLK_DIV_STAT_CPU0 - wait until clock gets stable (0 = stable) */
+	while (readl(&clk->div_stat_cpu0) & 0x1111111)
+		continue;
+
+	/* Change clock divider ratio for DMC */
+	/* DMCP_RATIO                  | DMCD_RATIO  */
+	/* [22:20]                     | [18:16]     */
+	/* DMC_RATIO | DPHY_RATIO | ACP_PCLK_RATIO   | ACP_RATIO */
+	/* [14:12]   | [10:8]     | [6:4]            | [2:0]     */
+	writel(0x13113117, &clk->div_dmc0);
+
+	/* CLK_DIV_STAT_DMC0 - wait until clock gets stable (0 = stable) */
+	while (readl(&clk->div_stat_dmc0) & 0x11111111)
+		continue;
+
+	/* Turn off unnecessary power domains */
+	writel(0x0, &pwr->xxti_configuration);	/* XXTI */
+	writel(0x0, &pwr->cam_configuration);	/* CAM */
+	writel(0x0, &pwr->tv_configuration);    /* TV */
+	writel(0x0, &pwr->mfc_configuration);   /* MFC */
+	writel(0x0, &pwr->g3d_configuration);   /* G3D */
+	writel(0x0, &pwr->gps_configuration);   /* GPS */
+	writel(0x0, &pwr->gps_alive_configuration);	/* GPS_ALIVE */
+
+	/* Turn off unnecessary clocks */
+	writel(0x0, &clk->gate_ip_cam);	/* CAM */
+	writel(0x0, &clk->gate_ip_tv);          /* TV */
+	writel(0x0, &clk->gate_ip_mfc);	/* MFC */
+	writel(0x0, &clk->gate_ip_g3d);	/* G3D */
+	writel(0x0, &clk->gate_ip_image);	/* IMAGE */
+	writel(0x0, &clk->gate_ip_gps);	/* GPS */
+}
+
+static int pmic_init_max8997(void)
+{
+	struct pmic *p = pmic_get("MAX8997_PMIC");
+	int i = 0, ret = 0;
+	u32 val;
+
+	if (pmic_probe(p))
+		return -1;
+
+	/* BUCK1 VARM: 1.2V */
+	val = (1200000 - 650000) / 25000;
+	ret |= pmic_reg_write(p, MAX8997_REG_BUCK1DVS1, val);
+	val = ENBUCK | ACTIVE_DISCHARGE;		/* DVS OFF */
+	ret |= pmic_reg_write(p, MAX8997_REG_BUCK1CTRL, val);
+
+	/* BUCK2 VINT: 1.1V */
+	val = (1100000 - 650000) / 25000;
+	ret |= pmic_reg_write(p, MAX8997_REG_BUCK2DVS1, val);
+	val = ENBUCK | ACTIVE_DISCHARGE;		/* DVS OFF */
+	ret |= pmic_reg_write(p, MAX8997_REG_BUCK2CTRL, val);
+
+
+	/* BUCK3 G3D: 1.1V - OFF */
+	ret |= pmic_reg_read(p, MAX8997_REG_BUCK3CTRL, &val);
+	val &= ~ENBUCK;
+	ret |= pmic_reg_write(p, MAX8997_REG_BUCK3CTRL, val);
+
+	val = (1100000 - 750000) / 50000;
+	ret |= pmic_reg_write(p, MAX8997_REG_BUCK3DVS, val);
+
+	/* BUCK4 CAMISP: 1.2V - OFF */
+	ret |= pmic_reg_read(p, MAX8997_REG_BUCK4CTRL, &val);
+	val &= ~ENBUCK;
+	ret |= pmic_reg_write(p, MAX8997_REG_BUCK4CTRL, val);
+
+	val = (1200000 - 650000) / 25000;
+	ret |= pmic_reg_write(p, MAX8997_REG_BUCK4DVS, val);
+
+	/* BUCK5 VMEM: 1.2V */
+	val = (1200000 - 650000) / 25000;
+	for (i = 0; i < 8; i++)
+		ret |= pmic_reg_write(p, MAX8997_REG_BUCK5DVS1 + i, val);
+
+	val = ENBUCK | ACTIVE_DISCHARGE;		/* DVS OFF */
+	ret |= pmic_reg_write(p, MAX8997_REG_BUCK5CTRL, val);
+
+	/* BUCK6 CAM AF: 2.8V */
+	/* No Voltage Setting Register */
+	/* GNSLCT 3.0X */
+	val = GNSLCT;
+	ret |= pmic_reg_write(p, MAX8997_REG_BUCK6CTRL, val);
+
+	/* BUCK7 VCC_SUB: 2.0V */
+	val = (2000000 - 750000) / 50000;
+	ret |= pmic_reg_write(p, MAX8997_REG_BUCK7DVS, val);
+
+	/* LDO1 VADC: 3.3V */
+	val = max8997_reg_ldo(3300000) | DIS_LDO;	/* OFF */
+	ret |= pmic_reg_write(p, MAX8997_REG_LDO1CTRL, val);
+
+	/* LDO1 Disable active discharging */
+	ret |= pmic_reg_read(p, MAX8997_REG_LDO1CONFIG, &val);
+	val &= ~LDO_ADE;
+	ret |= pmic_reg_write(p, MAX8997_REG_LDO1CONFIG, val);
+
+	/* LDO2 VALIVE: 1.1V */
+	val = max8997_reg_ldo(1100000) | EN_LDO;
+	ret |= pmic_reg_write(p, MAX8997_REG_LDO2CTRL, val);
+
+	/* LDO3 VUSB/MIPI: 1.1V */
+	val = max8997_reg_ldo(1100000) | DIS_LDO;	/* OFF */
+	ret |= pmic_reg_write(p, MAX8997_REG_LDO3CTRL, val);
+
+	/* LDO4 VMIPI: 1.8V */
+	val = max8997_reg_ldo(1800000) | DIS_LDO;	/* OFF */
+	ret |= pmic_reg_write(p, MAX8997_REG_LDO4CTRL, val);
+
+	/* LDO5 VHSIC: 1.2V */
+	val = max8997_reg_ldo(1200000) | DIS_LDO;	/* OFF */
+	ret |= pmic_reg_write(p, MAX8997_REG_LDO5CTRL, val);
+
+	/* LDO6 VCC_1.8V_PDA: 1.8V */
+	val = max8997_reg_ldo(1800000) | EN_LDO;
+	ret |= pmic_reg_write(p, MAX8997_REG_LDO6CTRL, val);
+
+	/* LDO7 CAM_ISP: 1.8V */
+	val = max8997_reg_ldo(1800000) | DIS_LDO;	/* OFF */
+	ret |= pmic_reg_write(p, MAX8997_REG_LDO7CTRL, val);
+
+	/* LDO8 VDAC/VUSB: 3.3V */
+	val = max8997_reg_ldo(3300000) | DIS_LDO;	/* OFF */
+	ret |= pmic_reg_write(p, MAX8997_REG_LDO8CTRL, val);
+
+	/* LDO9 VCC_2.8V_PDA: 2.8V */
+	val = max8997_reg_ldo(2800000) | EN_LDO;
+	ret |= pmic_reg_write(p, MAX8997_REG_LDO9CTRL, val);
+
+	/* LDO10 VPLL: 1.1V */
+	val = max8997_reg_ldo(1100000) | EN_LDO;
+	ret |= pmic_reg_write(p, MAX8997_REG_LDO10CTRL, val);
+
+	/* LDO11 TOUCH: 2.8V */
+	val = max8997_reg_ldo(2800000) | DIS_LDO;	/* OFF */
+	ret |= pmic_reg_write(p, MAX8997_REG_LDO11CTRL, val);
+
+	/* LDO12 VTCAM: 1.8V */
+	val = max8997_reg_ldo(1800000) | DIS_LDO;	/* OFF */
+	ret |= pmic_reg_write(p, MAX8997_REG_LDO12CTRL, val);
+
+	/* LDO13 VCC_3.0_LCD: 3.0V */
+	val = max8997_reg_ldo(3000000) | DIS_LDO;	/* OFF */
+	ret |= pmic_reg_write(p, MAX8997_REG_LDO13CTRL, val);
+
+	/* LDO14 MOTOR: 3.0V */
+	val = max8997_reg_ldo(3000000) | DIS_LDO;	/* OFF */
+	ret |= pmic_reg_write(p, MAX8997_REG_LDO14CTRL, val);
+
+	/* LDO15 LED_A: 2.8V */
+	val = max8997_reg_ldo(2800000) | DIS_LDO;	/* OFF */
+	ret |= pmic_reg_write(p, MAX8997_REG_LDO15CTRL, val);
+
+	/* LDO16 CAM_SENSOR: 1.8V */
+	val = max8997_reg_ldo(1800000) | DIS_LDO;	/* OFF */
+	ret |= pmic_reg_write(p, MAX8997_REG_LDO16CTRL, val);
+
+	/* LDO17 VTF: 2.8V */
+	val = max8997_reg_ldo(2800000) | DIS_LDO;	/* OFF */
+	ret |= pmic_reg_write(p, MAX8997_REG_LDO17CTRL, val);
+
+	/* LDO18 TOUCH_LED 3.3V */
+	val = max8997_reg_ldo(3300000) | DIS_LDO;	/* OFF */
+	ret |= pmic_reg_write(p, MAX8997_REG_LDO18CTRL, val);
+
+	/* LDO21 VDDQ: 1.2V */
+	val = max8997_reg_ldo(1200000) | EN_LDO;
+	ret |= pmic_reg_write(p, MAX8997_REG_LDO21CTRL, val);
+
+	/* SAFEOUT for both 1 and 2: 4.9V, Active discharge, Enable */
+	val = (SAFEOUT_4_90V << 0) | (SAFEOUT_4_90V << 2) |
+		ACTDISSAFEO1 | ACTDISSAFEO2 | ENSAFEOUT1 | ENSAFEOUT2;
+	ret |= pmic_reg_write(p, MAX8997_REG_SAFEOUTCTRL, val);
+
+	if (ret) {
+		puts("MAX8997 PMIC setting error!\n");
+		return -1;
+	}
+	return 0;
+}
+
+int power_init_board(void)
+{
+	int chrg, ret;
+	struct power_battery *pb;
+	struct pmic *p_fg, *p_chrg, *p_muic, *p_bat;
+
+	ret = pmic_init(I2C_5);
+	ret |= pmic_init_max8997();
+	ret |= power_fg_init(I2C_9);
+	ret |= power_muic_init(I2C_5);
+	ret |= power_bat_init(0);
+	if (ret)
+		return ret;
+
+	p_fg = pmic_get("MAX17042_FG");
+	if (!p_fg) {
+		puts("MAX17042_FG: Not found\n");
+		return -ENODEV;
+	}
+
+	p_chrg = pmic_get("MAX8997_PMIC");
+	if (!p_chrg) {
+		puts("MAX8997_PMIC: Not found\n");
+		return -ENODEV;
+	}
+
+	p_muic = pmic_get("MAX8997_MUIC");
+	if (!p_muic) {
+		puts("MAX8997_MUIC: Not found\n");
+		return -ENODEV;
+	}
+
+	p_bat = pmic_get("BAT_TRATS");
+	if (!p_bat) {
+		puts("BAT_TRATS: Not found\n");
+		return -ENODEV;
+	}
+
+	p_fg->parent =  p_bat;
+	p_chrg->parent = p_bat;
+	p_muic->parent = p_bat;
+
+	p_bat->low_power_mode = trats_low_power_mode;
+	p_bat->pbat->battery_init(p_bat, p_fg, p_chrg, p_muic);
+
+	pb = p_bat->pbat;
+	chrg = p_muic->chrg->chrg_type(p_muic);
+	debug("CHARGER TYPE: %d\n", chrg);
+
+	if (!p_chrg->chrg->chrg_bat_present(p_chrg)) {
+		puts("No battery detected\n");
+		return -1;
+	}
+
+	p_fg->fg->fg_battery_check(p_fg, p_bat);
+
+	if (pb->bat->state == CHARGE && chrg == CHARGER_USB)
+		puts("CHARGE Battery !\n");
 
 	return 0;
 }
@@ -220,7 +505,10 @@ int board_mmc_init(bd_t *bis)
 static int s5pc210_phy_control(int on)
 {
 	int ret = 0;
-	struct pmic *p = get_pmic();
+	u32 val = 0;
+	struct pmic *p = pmic_get("MAX8997_PMIC");
+	if (!p)
+		return -ENODEV;
 
 	if (pmic_probe(p))
 		return -1;
@@ -228,11 +516,17 @@ static int s5pc210_phy_control(int on)
 	if (on) {
 		ret |= pmic_set_output(p, MAX8997_REG_SAFEOUTCTRL,
 				      ENSAFEOUT1, LDO_ON);
-		ret |= pmic_reg_write(p, MAX8997_REG_LDO3CTRL, EN_LDO);
-		ret |= pmic_reg_write(p, MAX8997_REG_LDO8CTRL, EN_LDO);
+		ret |= pmic_reg_read(p, MAX8997_REG_LDO3CTRL, &val);
+		ret |= pmic_reg_write(p, MAX8997_REG_LDO3CTRL, EN_LDO | val);
+
+		ret |= pmic_reg_read(p, MAX8997_REG_LDO8CTRL, &val);
+		ret |= pmic_reg_write(p, MAX8997_REG_LDO8CTRL, EN_LDO | val);
 	} else {
-		ret |= pmic_reg_write(p, MAX8997_REG_LDO8CTRL, DIS_LDO);
-		ret |= pmic_reg_write(p, MAX8997_REG_LDO3CTRL, DIS_LDO);
+		ret |= pmic_reg_read(p, MAX8997_REG_LDO8CTRL, &val);
+		ret |= pmic_reg_write(p, MAX8997_REG_LDO8CTRL, DIS_LDO | val);
+
+		ret |= pmic_reg_read(p, MAX8997_REG_LDO3CTRL, &val);
+		ret |= pmic_reg_write(p, MAX8997_REG_LDO3CTRL, DIS_LDO | val);
 		ret |= pmic_set_output(p, MAX8997_REG_SAFEOUTCTRL,
 				      ENSAFEOUT1, LDO_OFF);
 	}
@@ -252,6 +546,12 @@ struct s3c_plat_otg_data s5pc210_otg_data = {
 	.usb_phy_ctrl	= EXYNOS4_USBPHY_CONTROL,
 	.usb_flags	= PHY0_SLEEP,
 };
+
+void board_usb_init(void)
+{
+	debug("USB_udc_probe\n");
+	s3c_udc_probe(&s5pc210_otg_data);
+}
 #endif
 
 static void pmic_reset(void)
@@ -383,7 +683,9 @@ static void lcd_reset(void)
 static int lcd_power(void)
 {
 	int ret = 0;
-	struct pmic *p = get_pmic();
+	struct pmic *p = pmic_get("MAX8997_PMIC");
+	if (!p)
+		return -ENODEV;
 
 	if (pmic_probe(p))
 		return 0;
@@ -443,7 +745,9 @@ static struct mipi_dsim_lcd_device mipi_lcd_device = {
 static int mipi_power(void)
 {
 	int ret = 0;
-	struct pmic *p = get_pmic();
+	struct pmic *p = pmic_get("MAX8997_PMIC");
+	if (!p)
+		return -ENODEV;
 
 	if (pmic_probe(p))
 		return 0;
@@ -461,42 +765,44 @@ static int mipi_power(void)
 	return 0;
 }
 
+vidinfo_t panel_info = {
+	.vl_freq	= 60,
+	.vl_col		= 720,
+	.vl_row		= 1280,
+	.vl_width	= 720,
+	.vl_height	= 1280,
+	.vl_clkp	= CONFIG_SYS_HIGH,
+	.vl_hsp		= CONFIG_SYS_LOW,
+	.vl_vsp		= CONFIG_SYS_LOW,
+	.vl_dp		= CONFIG_SYS_LOW,
+	.vl_bpix	= 5,	/* Bits per pixel, 2^5 = 32 */
+
+	/* s6e8ax0 Panel infomation */
+	.vl_hspw	= 5,
+	.vl_hbpd	= 10,
+	.vl_hfpd	= 10,
+
+	.vl_vspw	= 2,
+	.vl_vbpd	= 1,
+	.vl_vfpd	= 13,
+	.vl_cmd_allow_len = 0xf,
+
+	.win_id		= 3,
+	.cfg_gpio	= NULL,
+	.backlight_on	= NULL,
+	.lcd_power_on	= NULL,	/* lcd_power_on in mipi dsi driver */
+	.reset_lcd	= lcd_reset,
+	.dual_lcd_enabled = 0,
+
+	.init_delay	= 0,
+	.power_on_delay = 0,
+	.reset_delay	= 0,
+	.interface_mode = FIMD_RGB_INTERFACE,
+	.mipi_enabled	= 1,
+};
+
 void init_panel_info(vidinfo_t *vid)
 {
-	vid->vl_freq	= 60;
-	vid->vl_col	= 720;
-	vid->vl_row	= 1280;
-	vid->vl_width	= 720;
-	vid->vl_height	= 1280;
-	vid->vl_clkp	= CONFIG_SYS_HIGH;
-	vid->vl_hsp	= CONFIG_SYS_LOW;
-	vid->vl_vsp	= CONFIG_SYS_LOW;
-	vid->vl_dp	= CONFIG_SYS_LOW;
-
-	vid->vl_bpix	= 5;
-	vid->dual_lcd_enabled = 0;
-
-	/* s6e8ax0 Panel */
-	vid->vl_hspw	= 5;
-	vid->vl_hbpd	= 10;
-	vid->vl_hfpd	= 10;
-
-	vid->vl_vspw	= 2;
-	vid->vl_vbpd	= 1;
-	vid->vl_vfpd	= 13;
-	vid->vl_cmd_allow_len = 0xf;
-
-	vid->win_id = 3;
-	vid->cfg_gpio = NULL;
-	vid->backlight_on = NULL;
-	vid->lcd_power_on = NULL;	/* lcd_power_on in mipi dsi driver */
-	vid->reset_lcd = lcd_reset;
-
-	vid->init_delay = 0;
-	vid->power_on_delay = 0;
-	vid->reset_delay = 0;
-	vid->interface_mode = FIMD_RGB_INTERFACE;
-	vid->mipi_enabled = 1;
 	vid->logo_on	= 1,
 	vid->resolution	= HD_RESOLUTION,
 	vid->rgb_mode	= MODE_RGB_P,
