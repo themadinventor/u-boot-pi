@@ -1,4 +1,18 @@
 /*
+ * This code was extracted from:
+ * git://github.com/gonzoua/u-boot-pi.git master
+ * and hence presumably (C) 2012 Oleksandr Tymoshenko
+ *
+ * Tweaks for U-Boot upstreaming
+ * (C) 2012 Stephen Warren
+ *
+ * Portions (e.g. read/write macros, concepts for back-to-back register write
+ * timing workarounds) obviously extracted from the Linux kernel at:
+ * https://github.com/raspberrypi/linux.git rpi-3.6.y
+ *
+ * The Linux kernel code has the following (c) and license, which is hence
+ * propagated to Oleksandr's tree and here:
+ *
  * Support for SDHCI device on 2835
  * Based on sdhci-bcm2708.c (c) 2010 Broadcom
  *
@@ -25,181 +39,139 @@
 #include <common.h>
 #include <malloc.h>
 #include <sdhci.h>
-#include <asm/arch/regs.h>
 
-#undef BCM2835_TRACE_REGISTERS
+/* 400KHz is max freq for card ID etc. Use that as min */
+#define MIN_FREQ 400000
 
-#define	MAX_FREQ	80000000
-#define	MIN_FREQ	((MAX_FREQ/1023)/2)
+static uint twoticks_delay;
 
-static char *BCMSDH_NAME = "bcm2835_sdh";
-static struct sdhci_ops bcm2835_ops;
-uint twoticks_delay = 0;
-unsigned long long last_write = 0;
-
-inline static void bcm2835_sdhci_raw_writel(struct sdhci_host *host, u32 val, int reg)
+static inline void bcm2835_sdhci_raw_writel(struct sdhci_host *host, u32 val,
+						int reg)
 {
+	static ulong last_write;
 
-	/* 
-	 *The Arasan has a bugette whereby it may lose the content of
+	/*
+	 * The Arasan has a bugette whereby it may lose the content of
 	 * successive writes to registers that are within two SD-card clock
-   	 * cycles of each other (a clock domain crossing problem).
+	 * cycles of each other (a clock domain crossing problem).
 	 * It seems, however, that the data register does not have this problem.
 	 * (Which is just as well - otherwise we'd have to nobble the DMA engine
 	 * too)
 	 */
-	while (get_timer(last_write) < twoticks_delay) {
-
-	}
+	while (get_timer(last_write) < twoticks_delay)
+		;
 
 	writel(val, host->ioaddr + reg);
 	last_write = get_timer(0);
-
-	/*
-	 * Hackish. It seems that some U-Boot timeouts are not 
-	 * long enough for the SD card working on default frequency
-	 * so until we switch to full speed - create artificial delays
-	 */
-	if (host->mmc->clock <= MIN_FREQ) {
-		udelay(50000);
-	}
-
-	if ((reg != SDHCI_BUFFER && reg != SDHCI_INT_STATUS && reg != SDHCI_CLOCK_CONTROL)
-	    && host->mmc->clock > MIN_FREQ)
-  	{
-		int timeout = 100000;
-		while (val != readl(host->ioaddr + reg) && --timeout > 0)
-		   continue;
-
-		if (timeout <= 0)
-			printf("bcm2835_sdhci: writing 0x%X to reg 0x%X "
-				   "always gives 0x%X\n",
-				   val, reg, readl(host->ioaddr + reg));
-	}
-
 }
 
-inline static u32 bcm2835_sdhci_raw_readl(struct sdhci_host *host, int reg)
+static inline u32 bcm2835_sdhci_raw_readl(struct sdhci_host *host, int reg)
 {
-
 	return readl(host->ioaddr + reg);
 }
 
 static void bcm2835_sdhci_writel(struct sdhci_host *host, u32 val, int reg)
 {
-#ifdef BCM2835_TRACE_REGISTERS
-	printf("SDHCI[%02x] writel %08x\n", reg, val);
-#endif
-	writel(val, host->ioaddr + reg);
+	bcm2835_sdhci_raw_writel(host, val, reg);
 }
 
 static void bcm2835_sdhci_writew(struct sdhci_host *host, u16 val, int reg)
 {
-	static u32 shadow = 0;
-
-#ifdef BCM2835_TRACE_REGISTERS
-	printf("SDHCI[%02x] writew %04x\n", reg, val);
-#endif
-
-	u32 p = reg == SDHCI_COMMAND ? shadow :
-               bcm2835_sdhci_raw_readl(host, reg & ~3);
-	u32 s = reg << 3 & 0x18;
-	u32 l = val << s;
-	u32 m = 0xffff << s;
+	static u32 shadow;
+	u32 oldval = (reg == SDHCI_COMMAND) ? shadow :
+		bcm2835_sdhci_raw_readl(host, reg & ~3);
+	u32 word_num = (reg >> 1) & 1;
+	u32 word_shift = word_num * 16;
+	u32 mask = 0xffff << word_shift;
+	u32 newval = (oldval & ~mask) | (val << word_shift);
 
 	if (reg == SDHCI_TRANSFER_MODE)
-		shadow = (p & ~m) | l;
-	else {
-		bcm2835_sdhci_raw_writel(host, (p & ~m) | l, reg & ~3);
-	}
+		shadow = newval;
+	else
+		bcm2835_sdhci_raw_writel(host, newval, reg & ~3);
 }
 
 static void bcm2835_sdhci_writeb(struct sdhci_host *host, u8 val, int reg)
 {
-#ifdef BCM2835_TRACE_REGISTERS
-	printf("SDHCI[%02x] writeb %02x\n", reg, val);
-#endif
+	u32 oldval = bcm2835_sdhci_raw_readl(host, reg & ~3);
+	u32 byte_num = reg & 3;
+	u32 byte_shift = byte_num * 8;
+	u32 mask = 0xff << byte_shift;
+	u32 newval = (oldval & ~mask) | (val << byte_shift);
 
-	u32 p = bcm2835_sdhci_raw_readl(host, reg & ~3);
-	u32 s = reg << 3 & 0x18;
-	u32 l = val << s;
-	u32 m = 0xff << s;
-
-	bcm2835_sdhci_raw_writel(host, (p & ~m) | l, reg & ~3);
+	bcm2835_sdhci_raw_writel(host, newval, reg & ~3);
 }
 
 static u32 bcm2835_sdhci_readl(struct sdhci_host *host, int reg)
 {
-	u32 val = readl(host->ioaddr + reg);
-#ifdef BCM2835_TRACE_REGISTERS
-	printf("SDHCI[%02x] readl %08x\n", reg, val);
-#endif
+	u32 val = bcm2835_sdhci_raw_readl(host, reg);
+
 	return val;
 }
 
 static u16 bcm2835_sdhci_readw(struct sdhci_host *host, int reg)
 {
 	u32 val = bcm2835_sdhci_raw_readl(host, (reg & ~3));
-	val = val >> (reg << 3 & 0x18) & 0xffff;
+	u32 word_num = (reg >> 1) & 1;
+	u32 word_shift = word_num * 16;
+	u32 word = (val >> word_shift) & 0xffff;
 
-#ifdef BCM2835_TRACE_REGISTERS
-	printf("SDHCI[%02x] readw %04x\n", reg, val);
-#endif
-
-	return (u16)val;
+	return word;
 }
 
 static u8 bcm2835_sdhci_readb(struct sdhci_host *host, int reg)
 {
 	u32 val = bcm2835_sdhci_raw_readl(host, (reg & ~3));
-	val = val >> (reg << 3 & 0x18) & 0xff;
+	u32 byte_num = reg & 3;
+	u32 byte_shift = byte_num * 8;
+	u32 byte = (val >> byte_shift) & 0xff;
 
-#ifdef BCM2835_TRACE_REGISTERS
-	printf("SDHCI[%02x] readb %02x\n", reg, val);
-#endif
-
-	return (u8)val;
+	return byte;
 }
 
-int bcm2835_sdh_init(u32 regbase)
+static const struct sdhci_ops bcm2835_ops = {
+	.write_l = bcm2835_sdhci_writel,
+	.write_w = bcm2835_sdhci_writew,
+	.write_b = bcm2835_sdhci_writeb,
+	.read_l = bcm2835_sdhci_readl,
+	.read_w = bcm2835_sdhci_readw,
+	.read_b = bcm2835_sdhci_readb,
+};
+
+int bcm2835_sdhci_init(u32 regbase, u32 emmc_freq)
 {
 	struct sdhci_host *host = NULL;
-	uint32_t clock;
 
-	host = (struct sdhci_host *)malloc(sizeof(struct sdhci_host));
+	/*
+	 * See the comments in bcm2835_sdhci_raw_writel().
+	 *
+	 * This should probably be dynamically calculated based on the actual
+	 * frequency. However, this is the longest we'll have to wait, and
+	 * doesn't seem to slow access down too much, so the added complexity
+	 * doesn't seem worth it for now.
+	 *
+	 * 1/MIN_FREQ is (max) time per tick of eMMC clock.
+	 * 2/MIN_FREQ is time for two ticks.
+	 * Multiply by 1000000 to get uS per two ticks.
+	 * +1 for hack rounding.
+	 */
+	twoticks_delay = ((2 * 1000000) / MIN_FREQ) + 1;
+
+	host = malloc(sizeof(struct sdhci_host));
 	if (!host) {
-		printf("sdh_host malloc fail!\n");
+		printf("sdhci_host malloc fail!\n");
 		return 1;
 	}
 
-	host->name = BCMSDH_NAME;
+	host->name = "bcm2835_sdhci";
 	host->ioaddr = (void *)regbase;
-	host->quirks = SDHCI_QUIRK_BROKEN_VOLTAGE | SDHCI_QUIRK_BROKEN_R1B;
-	host->voltages = MMC_VDD_32_33 | MMC_VDD_33_34 | MMC_VDD_165_195;;
-
-	memset(&bcm2835_ops, 0, sizeof(struct sdhci_ops));
-	bcm2835_ops.write_l = bcm2835_sdhci_writel;
-	bcm2835_ops.write_w = bcm2835_sdhci_writew;
-	bcm2835_ops.write_b = bcm2835_sdhci_writeb;
-	bcm2835_ops.read_l = bcm2835_sdhci_readl;
-	bcm2835_ops.read_w = bcm2835_sdhci_readw;
-	bcm2835_ops.read_b = bcm2835_sdhci_readb;
+	host->quirks = SDHCI_QUIRK_BROKEN_VOLTAGE | SDHCI_QUIRK_BROKEN_R1B |
+		SDHCI_QUIRK_WAIT_SEND_CMD;
+	host->voltages = MMC_VDD_32_33 | MMC_VDD_33_34 | MMC_VDD_165_195;
 	host->ops = &bcm2835_ops;
 
-	/*
-	 * Convert SD controller ticks to CPU ticks
-	 */
-	twoticks_delay = ((2000000000ULL/MIN_FREQ) + 1)*get_tbclk()/1000000;
-	twoticks_delay = (twoticks_delay + 1000 - 1) / 1000;
-
-	host->version = sdhci_readw(host, SDHCI_HOST_VERSION) & 0xff;
-	add_sdhci(host, MIN_FREQ, 0);
+	host->version = sdhci_readw(host, SDHCI_HOST_VERSION);
+	add_sdhci(host, emmc_freq, MIN_FREQ);
 
 	return 0;
-}
-
-int board_mmc_init()
-{
-
-	bcm2835_sdh_init(BCM2835_EMMC_PHYSADDR);
 }
