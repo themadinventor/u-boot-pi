@@ -52,6 +52,7 @@
 #define CONFIG_SYS_MALLOC_LEN		SZ_4M
 #define CONFIG_SYS_MEMTEST_START	0x00100000
 #define CONFIG_SYS_MEMTEST_END		0x00200000
+#define CONFIG_LOADADDR			0x00200000
 
 /* Flash */
 #define CONFIG_SYS_NO_FLASH
@@ -59,6 +60,17 @@
 /* Devices */
 /* GPIO */
 #define CONFIG_BCM2835_GPIO
+/* LCD */
+#define CONFIG_LCD
+#define LCD_BPP				LCD_COLOR16
+/*
+ * Prevent allocation of RAM for FB; the real FB address is queried
+ * dynamically from the VideoCore co-processor, and comes from RAM
+ * not owned by the ARM CPU.
+ */
+#define CONFIG_FB_ADDR			0
+#define CONFIG_VIDEO_BCM2835
+#define CONFIG_SYS_WHITE_ON_BLACK
 
 /* Console UART */
 #define CONFIG_PL011_SERIAL
@@ -83,10 +95,14 @@
 /* Environment */
 #define CONFIG_ENV_SIZE			SZ_16K
 #define CONFIG_ENV_IS_NOWHERE
+#define CONFIG_ENV_VARS_UBOOT_CONFIG
 #define CONFIG_SYS_LOAD_ADDR		0x1000000
 #define CONFIG_BOOTDELAY	3
 
 #define CONFIG_EXTRA_ENV_SETTINGS \
+	"stdin=serial\0" \
+	"stderr=serial,lcd\0" \
+	"stdout=serial,lcd\0" \
 	"loadaddr=0x00008000\0" \
 	"mmcdev=0\0" \
 	"loadbootscript=fatload mmc ${mmcdev} ${loadaddr} boot.scr\0" \
@@ -134,6 +150,7 @@
 #define	CONFIG_USB_STORAGE
 /* Required for USB */
 #define CONFIG_DOS_PARTITION
+#define CONFIG_PARTITION_UUIDS
 
 /* Commands */
 #define CONFIG_CMD_RUN
@@ -150,6 +167,9 @@
 #define CONFIG_CMD_MMC
 #define CONFIG_CMD_FAT
 #define	CONFIG_CMD_EXT2
+#define	CONFIG_CMD_EXT
+#define	CONFIG_CMD_FS_GENERIC
+#define	CONFIG_CMD_PART
 
 #define CONFIG_CMD_BOOTZ
 #define CONFIG_CMD_GPIO
@@ -160,5 +180,6 @@
 #define CONFIG_SETUP_MEMORY_TAGS
 #define CONFIG_CMDLINE_TAG
 #define CONFIG_INITRD_TAG
+#define CONFIG_CMD_BMP
 
 #endif
