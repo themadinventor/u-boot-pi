@@ -77,6 +77,7 @@
 #define CONFIG_MMC
 #define CONFIG_SDHCI
 #define	CONFIG_MMC_SDHCI_IO_ACCESSORS
+#define CONFIG_SYS_MMC_MAX_DEVICE 1
 #define CONFIG_BCM2835_SDHCI
 
 /* Environment */
@@ -115,7 +116,7 @@
 #define CONFIG_CMDLINE_EDITING
 #define CONFIG_COMMAND_HISTORY
 #define CONFIG_AUTO_COMPLETE
-
+#define CONFIG_API
 
 /* Commands */
 #include <config_cmd_default.h>
@@ -136,6 +137,7 @@
 
 /* Commands */
 #define CONFIG_CMD_RUN
+#define CONFIG_CMD_ELF
 #define CONFIG_CMD_ECHO
 #define CONFIG_CMD_MEMORY
 #define CONFIG_CMD_MISC
