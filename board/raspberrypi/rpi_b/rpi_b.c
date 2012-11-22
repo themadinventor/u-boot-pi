@@ -78,17 +78,10 @@ int board_init(void)
 
 int board_mmc_init(void)
 {
-#if 0
 	ALLOC_ALIGN_BUFFER(struct msg_set_power_state, msg_pwr, 1, 16);
-#endif
 	ALLOC_ALIGN_BUFFER(struct msg_get_clock_rate, msg_clk, 1, 16);
 	int ret;
 
-#if 0
-	/*
-	 * FIXME: The firmware gives an error reponse to set_power_state. See:
-	 * https://github.com/raspberrypi/firmware/issues/106
-	 */
 	BCM2835_MBOX_INIT_HDR(msg_pwr);
 	BCM2835_MBOX_INIT_TAG(&msg_pwr->set_power_state,
 				SET_POWER_STATE);
@@ -104,7 +97,6 @@ int board_mmc_init(void)
 		printf("bcm2835: Could not set SDHCI power state\n");
 		return -1;
 	}
-#endif
 
 	BCM2835_MBOX_INIT_HDR(msg_clk);
 	BCM2835_MBOX_INIT_TAG(&msg_clk->get_clock_rate, GET_CLOCK_RATE);
@@ -126,6 +118,8 @@ int misc_init_r()
 	unsigned char *atags;
 	unsigned char *mac_param;
 	unsigned char mac[MAC_LEN + 1];
+	ALLOC_ALIGN_BUFFER(struct msg_set_power_state, msg_pwr, 1, 16);
+	int ret;
 
 	for (atags = 0x100; atags < 0x4000; atags += 4) {
 		memcpy(&tag_value, atags, sizeof(uint32_t));
@@ -141,6 +135,25 @@ int misc_init_r()
 			}
 		}
 
+	}
+
+	BCM2835_MBOX_INIT_HDR(msg_pwr);
+	BCM2835_MBOX_INIT_TAG(&msg_pwr->set_power_state,
+				SET_POWER_STATE);
+	msg_pwr->set_power_state.body.req.device_id =
+		BCM2835_MBOX_POWER_DEVID_USB_HCD;
+	msg_pwr->set_power_state.body.req.state =
+		BCM2835_MBOX_SET_POWER_STATE_REQ_ON |
+		BCM2835_MBOX_SET_POWER_STATE_REQ_WAIT;
+
+	ret = bcm2835_mbox_call_prop(BCM2835_MBOX_PROP_CHAN,
+					&msg_pwr->hdr);
+	if (ret) {
+		printf("bcm2835: Could not set USB power state\n");
+		return -1;
+	}
+	else {
+		printf("bcm2835: USB power in ON\n");
 	}
 
 	return 0;
