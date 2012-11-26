@@ -18,6 +18,7 @@
 #include <asm/arch/mbox.h>
 #include <asm/arch/sdhci.h>
 #include <asm/global_data.h>
+#include <libfdt.h>
 
 DECLARE_GLOBAL_DATA_PTR;
 
@@ -120,7 +121,28 @@ int misc_init_r()
 	unsigned char mac[MAC_LEN + 1];
 	ALLOC_ALIGN_BUFFER(struct msg_set_power_state, msg_pwr, 1, 16);
 	int ret;
+	int check_atags = 0;
+#if defined(CONFIG_OF_LIBFDT)
+	int proplen;
+	void *fdt = (void*)0x100;
+	unsigned char *prop;
 
+	if (fdt_check_header(fdt) == 0) {
+        	int nodeoff = fdt_path_offset(fdt, "/axi/usb/hub/ethernet");
+        	if (nodeoff >= 0) {
+			prop = (unsigned char*)fdt_getprop(fdt, nodeoff, "mac-address", &proplen);
+                        if (prop && (proplen == 6)) {
+				snprintf(mac, sizeof(mac)-1,
+				   "%02x:%02x:%02x:%02x:%02x:%02x",
+				   prop[0], prop[1], prop[2],
+				   prop[3], prop[4], prop[5]);
+				mac[MAC_LEN] = 0;
+				setenv("usbethaddr", mac);
+                        }
+
+		}
+	}
+#endif
 	for (atags = 0x100; atags < 0x4000; atags += 4) {
 		memcpy(&tag_value, atags, sizeof(uint32_t));
 		if (tag_value == ATAG_CMDLINE) {
