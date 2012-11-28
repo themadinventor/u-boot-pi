@@ -105,7 +105,6 @@
 	"stdin=serial\0" \
 	"stderr=serial,lcd\0" \
 	"stdout=serial,lcd\0" \
-	"loadaddr=0x00008000\0" \
 	"mmcdev=0\0" \
 	"loadbootscript=fatload mmc ${mmcdev} ${loadaddr} boot.scr\0" \
 	"bootscript=echo Running bootscript from mmc${mmcdev} ...; " \
